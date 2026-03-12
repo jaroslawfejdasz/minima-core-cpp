@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FUNCTION_KEYWORDS = exports.STATEMENT_KEYWORDS = void 0;
+exports.FUNCTION_ARITY = exports.FUNCTION_KEYWORDS = exports.STATEMENT_KEYWORDS = void 0;
 exports.tokenize = tokenize;
 const KEYWORDS = new Set([
     'LET', 'IF', 'THEN', 'ELSE', 'ELSEIF', 'ENDIF',
@@ -35,6 +35,35 @@ exports.FUNCTION_KEYWORDS = new Set([
     'GETINADDR', 'GETINAMT', 'GETINID', 'GETINTOK', 'SUMINPUTS', 'VERIFYIN',
     'GETOUTADDR', 'GETOUTAMT', 'GETOUTKEEPSTATE', 'GETOUTTOK', 'SUMOUTPUTS', 'VERIFYOUT',
 ]);
+// FUNCTION_ARITY: [min, max] args, -1 = variadic
+exports.FUNCTION_ARITY = {
+    // Type conversions
+    ASCII: [1, 1], BOOL: [1, 1], HEX: [1, 1], NUMBER: [1, 1], STRING: [1, 1], UTF8: [1, 1],
+    // Address
+    ADDRESS: [1, 1],
+    // Variable ops
+    EXISTS: [1, 1], GET: [1, -1], FUNCTION: [1, 1],
+    // Bit ops
+    BITCOUNT: [1, 1], BITGET: [2, 2], BITSET: [3, 3],
+    // String / hex ops
+    CONCAT: [2, -1], LEN: [1, 1], OVERWRITE: [5, 5], REV: [1, 1],
+    SETLEN: [2, 2], SUBSET: [3, 3],
+    // Math
+    ABS: [1, 1], CEIL: [1, 1], DEC: [1, 1], FLOOR: [1, 1], INC: [1, 1],
+    MAX: [2, 2], MIN: [2, 2], POW: [2, 2], SIGDIG: [2, 2], SQRT: [1, 1],
+    // Crypto
+    PROOF: [3, 3], SHA2: [1, 1], SHA3: [1, 1],
+    CHECKSIG: [3, 3], MULTISIG: [3, -1], SIGNEDBY: [1, 1],
+    // State
+    PREVSTATE: [1, 1], SAMESTATE: [2, 2], STATE: [1, 1],
+    // String
+    REPLACE: [3, 3], REPLACEFIRST: [3, 3], SUBSTR: [3, 3],
+    // Input / output
+    GETINADDR: [1, 1], GETINAMT: [1, 1], GETINID: [1, 1], GETINTOK: [1, 1],
+    SUMINPUTS: [1, 1], VERIFYIN: [4, 4],
+    GETOUTADDR: [1, 1], GETOUTAMT: [1, 1], GETOUTKEEPSTATE: [1, 1], GETOUTTOK: [1, 1],
+    SUMOUTPUTS: [1, 1], VERIFYOUT: [4, 4],
+};
 function tokenize(script) {
     const tokens = [];
     const errors = [];

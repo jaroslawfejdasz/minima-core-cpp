@@ -6,6 +6,7 @@ export interface Token {
 }
 export declare const STATEMENT_KEYWORDS: Set<string>;
 export declare const FUNCTION_KEYWORDS: Set<string>;
+export declare const FUNCTION_ARITY: Record<string, [number, number]>;
 export interface TokenizeResult {
     tokens: Token[];
     errors: LintError[];
