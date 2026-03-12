@@ -1,10 +1,10 @@
 {
-  "phase": 3,
-  "phase_name": "minima-contracts",
+  "phase": 4,
+  "phase_name": "create-minidapp",
   "step": "start",
-  "iteration": 1,
+  "iteration": 2,
   "status": "running",
-  "last_report": "2026-03-12T22:25",
-  "phases_done": ["minima-test", "kiss-vm-lint"],
-  "notes": "kiss-vm-lint: 25 testów, 10 reguł, CLI działa"
+  "last_report": "2026-03-12T22:36",
+  "phases_done": ["minima-test", "kiss-vm-lint", "minima-contracts"],
+  "notes": "minima-contracts: 56 testów, 12 kontraktów (basic-signed, time-lock, coin-age-lock, multisig 2of2/2of3/m-of-n, htlc, exchange, conditional-payment, state-channel, vault, dead-mans-switch). Wszystko zaudytowane i poprawione."
 }

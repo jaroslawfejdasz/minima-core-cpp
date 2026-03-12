@@ -3,6 +3,14 @@ import { ALL_RULES, Rule } from './rules';
 
 export { LintError } from './tokenizer';
 
+export interface LintSummary {
+  errors: number;
+  warnings: number;
+  infos: number;
+  total: number;
+  instructionEstimate: number;
+}
+
 export interface LintResult {
   errors: LintError[];
   warnings: LintError[];
@@ -10,11 +18,21 @@ export interface LintResult {
   all: LintError[];
   hasErrors: boolean;
   script: string;
+  summary: LintSummary;
 }
 
 export interface LintOptions {
   rules?: Rule[];
   ignoreRules?: string[];
+}
+
+/**
+ * Rough instruction count estimate — counts statement keywords.
+ * Used for early detection of scripts approaching the 1024 limit.
+ */
+function estimateInstructions(script: string): number {
+  const stmtKeywords = /\b(LET|IF|WHILE|RETURN|ASSERT|EXEC|MAST)\b/gi;
+  return (script.match(stmtKeywords) ?? []).length;
 }
 
 export function lint(script: string, options: LintOptions = {}): LintResult {
@@ -31,14 +49,26 @@ export function lint(script: string, options: LintOptions = {}): LintResult {
   }
 
   const filtered = all.filter(e => !ignore.has(e.code));
+  const errors   = filtered.filter(e => e.severity === 'error');
+  const warnings = filtered.filter(e => e.severity === 'warning');
+  const infos    = filtered.filter(e => e.severity === 'info');
+
+  const summary: LintSummary = {
+    errors:   errors.length,
+    warnings: warnings.length,
+    infos:    infos.length,
+    total:    filtered.length,
+    instructionEstimate: estimateInstructions(script),
+  };
 
   return {
-    errors:   filtered.filter(e => e.severity === 'error'),
-    warnings: filtered.filter(e => e.severity === 'warning'),
-    infos:    filtered.filter(e => e.severity === 'info'),
-    all:      filtered,
-    hasErrors: filtered.some(e => e.severity === 'error'),
-    script
+    errors,
+    warnings,
+    infos,
+    all: filtered,
+    hasErrors: errors.length > 0,
+    script,
+    summary,
   };
 }
 
@@ -53,3 +83,6 @@ export function lintOrThrow(script: string, options?: LintOptions): LintResult {
 
 export { ALL_RULES } from './rules';
 export * as rules from './rules';
+
+// Backward-compat alias
+export { lint as analyze };

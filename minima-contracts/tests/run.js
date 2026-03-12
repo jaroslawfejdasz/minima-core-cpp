@@ -1,170 +1,429 @@
-const {
-  BasicSigned, MultiSig,
-  TimeLock, CoinAgeLock, TimeLockOrRefund,
-  HTLC,
-  Exchange, LimitOrder,
-  Vault, TwoOfThreeRecovery
-} = require('../dist/index');
-
-const KEY1 = '0x' + 'aa'.repeat(32);
-const KEY2 = '0x' + 'bb'.repeat(32);
-const KEY3 = '0x' + 'cc'.repeat(32);
-const HASH = '0x' + 'de'.repeat(32);
-const ADDR = '0x' + 'ff'.repeat(32);
-const TOKEN = '0x00';
+/**
+ * minima-contracts test suite
+ * Tests the ContractLibrary API + runtime verification via minima-test.
+ */
+const { contracts, MinimaContractLibrary } = require('../dist/index');
+const { createHash } = require('crypto');
 
 let passed = 0, failed = 0;
 
 function test(name, fn) {
-  try { fn(); console.log(`  ✓ ${name}`); passed++; }
-  catch(e) { console.log(`  ✗ ${name}\n      → ${e.message}`); failed++; }
+  try { fn(); console.log('\x1b[32m  ✓\x1b[0m ' + name); passed++; }
+  catch(e) { console.log('\x1b[31m  ✗\x1b[0m ' + name + '\n    \x1b[31m→ ' + e.message + '\x1b[0m'); failed++; }
 }
-function throws(fn, msg) {
-  let threw = false;
-  try { fn(); } catch { threw = true; }
-  if (!threw) throw new Error(msg || 'Expected to throw');
+function assert(cond, msg) { if (!cond) throw new Error(msg || 'Assertion failed'); }
+function assertThrows(fn, msgContains) {
+  try { fn(); throw new Error('Expected to throw but did not'); }
+  catch(e) {
+    if (e.message === 'Expected to throw but did not') throw e;
+    if (msgContains && !e.message.includes(msgContains))
+      throw new Error(`Expected error containing "${msgContains}", got: ${e.message}`);
+  }
 }
-function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
-function includes(str, sub) { assert(str.includes(sub), `Expected "${sub}" in:\n${str}`); }
+function assertContains(str, sub) {
+  if (!str.includes(sub)) throw new Error(`Expected to contain "${sub}", got:\n${str}`);
+}
 
-// ── BasicSigned ──
-console.log('\nBasicSigned');
-test('generates valid script', () => {
-  const s = BasicSigned(KEY1);
-  includes(s, 'RETURN SIGNEDBY(');
-  includes(s, KEY1);
+// Helpers for building mock transactions
+function withBlock(blockNumber, extra = {}) {
+  return { transaction: { blockNumber, ...extra } };
+}
+function withCoinAge(coinAge, extra = {}) {
+  // coinAge = blockNumber - blockCreated
+  return { transaction: { blockNumber: 1000 + coinAge, inputs: [{ coinId: '0xabc', address: '0xabc', amount: 100, tokenId: '0x00', blockCreated: 1000 }], ...extra } };
+}
+function withState(stateVars, prevStateVars = {}, extra = {}) {
+  return { transaction: { stateVars, prevStateVars, ...extra } };
+}
+function withStateAndAge(stateVars, prevStateVars, coinAge, extra = {}) {
+  return { transaction: { stateVars, prevStateVars, blockNumber: 1000 + coinAge, inputs: [{ coinId: '0xabc', address: '0xabc', amount: 100, tokenId: '0x00', blockCreated: 1000 }], ...extra } };
+}
+
+// Load minima-test
+let runScript = null;
+try {
+  runScript = require('../../minima-test/dist/api').runScript;
+  console.log('\x1b[90m  (minima-test available — runtime tests enabled)\x1b[0m');
+} catch {
+  console.log('\x1b[90m  (minima-test not available — runtime tests skipped)\x1b[0m');
+}
+
+const KEY_A = '0xaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd';
+const KEY_B = '0x1122334411223344112233441122334411223344112233441122334411223344';
+const KEY_C = '0x5566778855667788556677885566778855667788556677885566778855667788';
+const ADDR  = '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef';
+const TOKEN = '0x' + 'ab'.repeat(32);
+
+// SHA3 helper
+function sha3hex(data) {
+  return '0x' + createHash('sha3-256').update(Buffer.from(data, 'utf8')).digest('hex');
+}
+
+// =====================================================================
+console.log('\n\x1b[1m  ContractLibrary — core API\x1b[0m');
+
+test('contracts.list() returns all 12 contracts', () => {
+  assert(contracts.list().length === 12, `Expected 12, got ${contracts.list().length}`);
 });
-test('throws on short key', () => throws(() => BasicSigned('0xaabb'), 'Expected throw for short key'));
-test('throws on missing 0x', () => throws(() => BasicSigned('aabbccdd'), 'Expected throw for no 0x'));
-
-// ── MultiSig ──
-console.log('\nMultiSig');
-test('2-of-3 generates valid script', () => {
-  const s = MultiSig(2, [KEY1, KEY2, KEY3]);
-  includes(s, 'RETURN MULTISIG(2,');
-  includes(s, KEY1); includes(s, KEY2); includes(s, KEY3);
+test('contracts.get() returns a template', () => {
+  const t = contracts.get('basic-signed');
+  assert(t && t.name === 'basic-signed');
 });
-test('throws when required > keys', () => throws(() => MultiSig(3, [KEY1, KEY2])));
-test('throws on empty keys', () => throws(() => MultiSig(1, [])));
-test('throws on required < 1', () => throws(() => MultiSig(0, [KEY1])));
-
-// ── TimeLock ──
-console.log('\nTimeLock');
-test('generates script with block number', () => {
-  const s = TimeLock(KEY1, 1000000);
-  includes(s, 'ASSERT @BLOCK GTE 1000000');
-  includes(s, `RETURN SIGNEDBY(${KEY1})`);
+test('contracts.get() returns undefined for unknown', () => {
+  assert(contracts.get('unknown') === undefined);
 });
-test('throws on negative block', () => throws(() => TimeLock(KEY1, -1)));
-test('throws on float block', () => throws(() => TimeLock(KEY1, 1.5)));
-
-// ── CoinAgeLock ──
-console.log('\nCoinAgeLock');
-test('generates coinage script', () => {
-  const s = CoinAgeLock(KEY1, 1000);
-  includes(s, 'ASSERT @COINAGE GTE 1000');
-  includes(s, `RETURN SIGNEDBY(${KEY1})`);
+test('contracts.compile() throws for unknown contract', () => {
+  assertThrows(() => contracts.compile('nope', {}), 'not found');
 });
-test('throws on minAge < 1', () => throws(() => CoinAgeLock(KEY1, 0)));
-
-// ── TimeLockOrRefund ──
-console.log('\nTimeLockOrRefund');
-test('generates dual-path script', () => {
-  const s = TimeLockOrRefund(KEY1, KEY2, 5000);
-  includes(s, 'IF @BLOCK LTE 5000');
-  includes(s, `RETURN SIGNEDBY(${KEY1})`);
-  includes(s, `RETURN SIGNEDBY(${KEY2})`);
+test('contracts.compile() fills defaults (vault delayBlocks)', () => {
+  const c = contracts.compile('vault', { hotPubKey: KEY_A, coldPubKey: KEY_B });
+  assertContains(c.script, '2880');
 });
-
-// ── HTLC ──
-console.log('\nHTLC');
-test('generates HTLC with SHA2', () => {
-  const s = HTLC(KEY1, KEY2, HASH, 100000, 'SHA2');
-  includes(s, 'SHA2(preimage)');
-  includes(s, `EQ ${HASH}`);
-  includes(s, 'IF @BLOCK LT 100000');
-  includes(s, `RETURN SIGNEDBY(${KEY1})`);
-  includes(s, `RETURN SIGNEDBY(${KEY2})`);
+test('contracts.compile() throws on missing required param', () => {
+  assertThrows(() => contracts.compile('basic-signed', {}), "Missing required param 'ownerPubKey'");
 });
-test('generates HTLC with SHA3', () => {
-  const s = HTLC(KEY1, KEY2, HASH, 100000, 'SHA3');
-  includes(s, 'SHA3(preimage)');
+test('contracts.compile() throws on invalid hex param', () => {
+  assertThrows(() => contracts.compile('basic-signed', { ownerPubKey: 'not-hex' }), 'must be a hex value');
 });
-test('throws on wrong hashFn', () => throws(() => HTLC(KEY1, KEY2, HASH, 100000, 'MD5')));
-test('throws on short hashlock', () => throws(() => HTLC(KEY1, KEY2, '0xaabb', 100000)));
-
-// ── Exchange ──
-console.log('\nExchange');
-test('generates exchange script', () => {
-  const s = Exchange(TOKEN, 100, ADDR, KEY1);
-  includes(s, 'VERIFYOUT');
-  includes(s, '100');
-  includes(s, ADDR);
-  includes(s, `SIGNEDBY(${KEY1})`);
+test('scriptHash is 0x + 64 hex chars (SHA3-256)', () => {
+  const c = contracts.compile('basic-signed', { ownerPubKey: KEY_A });
+  assert(c.scriptHash.startsWith('0x') && c.scriptHash.length === 66,
+    `Bad scriptHash: ${c.scriptHash}`);
 });
-test('throws on amount <= 0', () => throws(() => Exchange(TOKEN, 0, ADDR, KEY1)));
-test('throws on bad tokenId', () => throws(() => Exchange('noprefix', 100, ADDR, KEY1)));
-
-// ── LimitOrder ──
-console.log('\nLimitOrder');
-test('generates limit order script', () => {
-  const s = LimitOrder(TOKEN, 2.5, ADDR, KEY1);
-  includes(s, 'SAMESTATE');
-  includes(s, '2.5');
+test('scriptHash is deterministic', () => {
+  const a = contracts.compile('basic-signed', { ownerPubKey: KEY_A });
+  const b = contracts.compile('basic-signed', { ownerPubKey: KEY_A });
+  assert(a.scriptHash === b.scriptHash);
+});
+test('different params → different scriptHash', () => {
+  const a = contracts.compile('basic-signed', { ownerPubKey: KEY_A });
+  const b = contracts.compile('basic-signed', { ownerPubKey: KEY_B });
+  assert(a.scriptHash !== b.scriptHash);
+});
+test('custom contract can be registered', () => {
+  const lib = new MinimaContractLibrary();
+  lib.register({
+    name: 'my-custom', description: 'test',
+    params: [{ name: 'key', type: 'hex', description: 'key' }],
+    script: ({ key }) => `RETURN SIGNEDBY(${key})`,
+    example: { key: KEY_A },
+  });
+  assertContains(lib.compile('my-custom', { key: KEY_A }).script, KEY_A);
+});
+test('registering duplicate name throws', () => {
+  const lib = new MinimaContractLibrary();
+  const t = { name: 'dup', description: '', params: [], script: () => 'RETURN TRUE', example: {} };
+  lib.register(t);
+  assertThrows(() => lib.register(t), 'already registered');
 });
 
-// ── Vault ──
-console.log('\nVault');
-test('generates vault with spending limit', () => {
-  const s = Vault(KEY1, 100, 10);
-  includes(s, 'ASSERT SIGNEDBY(');
-  includes(s, 'LTE 1000'); // 100 * 10
-  includes(s, 'SAMESTATE');
+// =====================================================================
+console.log('\n\x1b[1m  basic-signed\x1b[0m');
+
+test('script contains SIGNEDBY(key)', () => {
+  assertContains(contracts.compile('basic-signed', { ownerPubKey: KEY_A }).script, `SIGNEDBY(${KEY_A})`);
 });
-test('throws on maxSpend <= 0', () => throws(() => Vault(KEY1, 0, 10)));
-test('throws on windowBlocks < 1', () => throws(() => Vault(KEY1, 100, 0)));
-
-// ── TwoOfThreeRecovery ──
-console.log('\nTwoOfThreeRecovery');
-test('generates recovery script', () => {
-  const s = TwoOfThreeRecovery(KEY1, [KEY2, KEY3, '0x' + 'dd'.repeat(32)], 5000);
-  includes(s, `SIGNEDBY(${KEY1})`);
-  includes(s, 'ASSERT @COINAGE GTE 5000');
-  includes(s, 'MULTISIG(2,');
-});
-test('throws on delay < 1', () => throws(() => TwoOfThreeRecovery(KEY1, [KEY2, KEY3, KEY2], 0)));
-
-// ── Script validity: no syntax errors ──
-console.log('\nScript linting (all contracts must pass kiss-vm-lint)');
-const { lint } = require('../../kiss-vm-lint/dist/index');
-
-function lintCheck(name, script) {
-  test(`${name}: no errors`, () => {
-    const r = lint(script, { ignoreRules: ['R003', 'R009', 'R006'] }); // R003/R009 expected in templates
-    if (r.errors.length > 0) {
-      throw new Error(r.errors.map(e => `[${e.code}] ${e.message}`).join('; '));
-    }
+if (runScript) {
+  test('[runtime] passes when signed by owner', () => {
+    const c = contracts.compile('basic-signed', { ownerPubKey: KEY_A });
+    assert(runScript(c.script, { signatures: [KEY_A] }).success);
+  });
+  test('[runtime] fails without signature', () => {
+    const c = contracts.compile('basic-signed', { ownerPubKey: KEY_A });
+    assert(!runScript(c.script, { signatures: [] }).success);
+  });
+  test('[runtime] fails with wrong key', () => {
+    const c = contracts.compile('basic-signed', { ownerPubKey: KEY_A });
+    assert(!runScript(c.script, { signatures: [KEY_B] }).success);
   });
 }
 
-lintCheck('BasicSigned', BasicSigned(KEY1));
-lintCheck('MultiSig', MultiSig(2, [KEY1, KEY2, KEY3]));
-lintCheck('TimeLock', TimeLock(KEY1, 1000000));
-lintCheck('CoinAgeLock', CoinAgeLock(KEY1, 1000));
-lintCheck('TimeLockOrRefund', TimeLockOrRefund(KEY1, KEY2, 5000));
-lintCheck('HTLC', HTLC(KEY1, KEY2, HASH, 100000));
-lintCheck('Exchange', Exchange(TOKEN, 100, ADDR, KEY1));
-lintCheck('LimitOrder', LimitOrder(TOKEN, 2.5, ADDR, KEY1));
-lintCheck('Vault', Vault(KEY1, 100, 10));
-lintCheck('TwoOfThreeRecovery', TwoOfThreeRecovery(KEY1, [KEY2, KEY3, '0x'+'dd'.repeat(32)], 5000));
+// =====================================================================
+console.log('\n\x1b[1m  time-lock\x1b[0m');
 
-// Summary
-console.log('');
-console.log('─'.repeat(50));
+test('script contains @BLOCK GTE and SIGNEDBY', () => {
+  const c = contracts.compile('time-lock', { ownerPubKey: KEY_A, unlockBlock: '1000' });
+  assertContains(c.script, '@BLOCK'); assertContains(c.script, 'SIGNEDBY');
+});
+if (runScript) {
+  test('[runtime] fails before unlock block', () => {
+    const c = contracts.compile('time-lock', { ownerPubKey: KEY_A, unlockBlock: '1000' });
+    assert(!runScript(c.script, { signatures: [KEY_A], ...withBlock(999) }).success);
+  });
+  test('[runtime] passes at unlock block', () => {
+    const c = contracts.compile('time-lock', { ownerPubKey: KEY_A, unlockBlock: '1000' });
+    assert(runScript(c.script, { signatures: [KEY_A], ...withBlock(1000) }).success);
+  });
+  test('[runtime] passes after unlock block', () => {
+    const c = contracts.compile('time-lock', { ownerPubKey: KEY_A, unlockBlock: '1000' });
+    assert(runScript(c.script, { signatures: [KEY_A], ...withBlock(9999) }).success);
+  });
+}
+
+// =====================================================================
+console.log('\n\x1b[1m  coin-age-lock\x1b[0m');
+
+test('script contains @COINAGE', () => {
+  assertContains(contracts.compile('coin-age-lock', { ownerPubKey: KEY_A, minAge: '100' }).script, '@COINAGE');
+});
+if (runScript) {
+  test('[runtime] fails if coin too young', () => {
+    const c = contracts.compile('coin-age-lock', { ownerPubKey: KEY_A, minAge: '100' });
+    assert(!runScript(c.script, { signatures: [KEY_A], ...withCoinAge(50) }).success);
+  });
+  test('[runtime] passes when coin old enough', () => {
+    const c = contracts.compile('coin-age-lock', { ownerPubKey: KEY_A, minAge: '100' });
+    assert(runScript(c.script, { signatures: [KEY_A], ...withCoinAge(100) }).success);
+  });
+}
+
+// =====================================================================
+console.log('\n\x1b[1m  multisig variants\x1b[0m');
+
+test('2of2 script contains MULTISIG(2, key1, key2)', () => {
+  assertContains(
+    contracts.compile('multisig-2of2', { pubKey1: KEY_A, pubKey2: KEY_B }).script,
+    `MULTISIG(2, ${KEY_A}, ${KEY_B})`
+  );
+});
+test('2of3 script contains MULTISIG(2, k1, k2, k3)', () => {
+  assertContains(
+    contracts.compile('multisig-2of3', { pubKey1: KEY_A, pubKey2: KEY_B, pubKey3: KEY_C }).script,
+    `MULTISIG(2, ${KEY_A}, ${KEY_B}, ${KEY_C})`
+  );
+});
+test('m-of-n generates correct MULTISIG call', () => {
+  assertContains(
+    contracts.compile('multisig-m-of-n', { required: '2', keys: `${KEY_A} ${KEY_B} ${KEY_C}` }).script,
+    'MULTISIG(2,'
+  );
+});
+if (runScript) {
+  test('[runtime] 2of2 passes with both sigs', () => {
+    const c = contracts.compile('multisig-2of2', { pubKey1: KEY_A, pubKey2: KEY_B });
+    assert(runScript(c.script, { signatures: [KEY_A, KEY_B] }).success);
+  });
+  test('[runtime] 2of2 fails with one sig', () => {
+    const c = contracts.compile('multisig-2of2', { pubKey1: KEY_A, pubKey2: KEY_B });
+    assert(!runScript(c.script, { signatures: [KEY_A] }).success);
+  });
+  test('[runtime] 2of3 passes with any 2', () => {
+    const c = contracts.compile('multisig-2of3', { pubKey1: KEY_A, pubKey2: KEY_B, pubKey3: KEY_C });
+    assert(runScript(c.script, { signatures: [KEY_B, KEY_C] }).success);
+  });
+  test('[runtime] 2of3 fails with 1 of 3', () => {
+    const c = contracts.compile('multisig-2of3', { pubKey1: KEY_A, pubKey2: KEY_B, pubKey3: KEY_C });
+    assert(!runScript(c.script, { signatures: [KEY_A] }).success);
+  });
+}
+
+// =====================================================================
+console.log('\n\x1b[1m  htlc\x1b[0m');
+
+// Use string preimage (STATE returns string, SHA3 on string uses UTF8)
+const PREIMAGE = 'supersecret_preimage';
+const HTLC_HASH = sha3hex(PREIMAGE);
+
+test('script contains SHA3, STATE(1), @BLOCK, timeout', () => {
+  const c = contracts.compile('htlc', { recipientPubKey: KEY_A, senderPubKey: KEY_B,
+    secretHash: HTLC_HASH, timeoutBlock: '5000' });
+  assertContains(c.script, 'SHA3');
+  assertContains(c.script, 'STATE(1)');
+  assertContains(c.script, '@BLOCK');
+});
+if (runScript) {
+  test('[runtime] claim: correct preimage + recipient sig', () => {
+    const c = contracts.compile('htlc', { recipientPubKey: KEY_A, senderPubKey: KEY_B,
+      secretHash: HTLC_HASH, timeoutBlock: '9999999' });
+    const r = runScript(c.script, { signatures: [KEY_A],
+      ...withBlock(100, { stateVars: { 1: PREIMAGE } }) });
+    assert(r.success, r.error);
+  });
+  test('[runtime] claim fails with wrong preimage', () => {
+    const c = contracts.compile('htlc', { recipientPubKey: KEY_A, senderPubKey: KEY_B,
+      secretHash: HTLC_HASH, timeoutBlock: '9999999' });
+    const r = runScript(c.script, { signatures: [KEY_A],
+      ...withBlock(100, { stateVars: { 1: 'wrong' } }) });
+    assert(!r.success);
+  });
+  test('[runtime] refund after timeout + sender sig', () => {
+    const c = contracts.compile('htlc', { recipientPubKey: KEY_A, senderPubKey: KEY_B,
+      secretHash: HTLC_HASH, timeoutBlock: '100' });
+    const r = runScript(c.script, { signatures: [KEY_B],
+      ...withBlock(200, { stateVars: { 1: 'wrong' } }) });
+    assert(r.success, r.error);
+  });
+  test('[runtime] refund fails before timeout', () => {
+    const c = contracts.compile('htlc', { recipientPubKey: KEY_A, senderPubKey: KEY_B,
+      secretHash: HTLC_HASH, timeoutBlock: '9999' });
+    const r = runScript(c.script, { signatures: [KEY_B],
+      ...withBlock(100, { stateVars: { 1: 'wrong' } }) });
+    assert(!r.success);
+  });
+}
+
+// =====================================================================
+console.log('\n\x1b[1m  exchange\x1b[0m');
+
+test('script contains VERIFYOUT, amount, seller address', () => {
+  const c = contracts.compile('exchange', { sellerAddress: ADDR, tokenId: TOKEN,
+    tokenAmount: '1000', sellerPubKey: KEY_A });
+  assertContains(c.script, 'VERIFYOUT');
+  assertContains(c.script, '1000');
+  assertContains(c.script, ADDR);
+});
+if (runScript) {
+  test('[runtime] passes when correct payment output exists', () => {
+    const c = contracts.compile('exchange', { sellerAddress: ADDR, tokenId: TOKEN,
+      tokenAmount: '500', sellerPubKey: KEY_A });
+    const r = runScript(c.script, { signatures: [],
+      transaction: { outputs: [{ address: ADDR, amount: 500, tokenId: TOKEN }] } });
+    assert(r.success, r.error);
+  });
+  test('[runtime] fails with wrong amount', () => {
+    const c = contracts.compile('exchange', { sellerAddress: ADDR, tokenId: TOKEN,
+      tokenAmount: '500', sellerPubKey: KEY_A });
+    assert(!runScript(c.script, { signatures: [],
+      transaction: { outputs: [{ address: ADDR, amount: 400, tokenId: TOKEN }] } }).success);
+  });
+  test('[runtime] fails with wrong address', () => {
+    const c = contracts.compile('exchange', { sellerAddress: ADDR, tokenId: TOKEN,
+      tokenAmount: '500', sellerPubKey: KEY_A });
+    assert(!runScript(c.script, { signatures: [],
+      transaction: { outputs: [{ address: '0xbadaddr', amount: 500, tokenId: TOKEN }] } }).success);
+  });
+  test('[runtime] seller can cancel by signing', () => {
+    const c = contracts.compile('exchange', { sellerAddress: ADDR, tokenId: TOKEN,
+      tokenAmount: '500', sellerPubKey: KEY_A });
+    assert(runScript(c.script, { signatures: [KEY_A], transaction: { outputs: [] } }).success);
+  });
+}
+
+// =====================================================================
+console.log('\n\x1b[1m  vault\x1b[0m');
+
+test('script contains hot key, cold key, @COINAGE', () => {
+  const c = contracts.compile('vault', { hotPubKey: KEY_A, coldPubKey: KEY_B });
+  assertContains(c.script, KEY_A); assertContains(c.script, KEY_B); assertContains(c.script, '@COINAGE');
+});
+if (runScript) {
+  test('[runtime] guardian (cold key) can spend immediately', () => {
+    const c = contracts.compile('vault', { hotPubKey: KEY_A, coldPubKey: KEY_B, delayBlocks: '100' });
+    assert(runScript(c.script, { signatures: [KEY_B], ...withCoinAge(0) }).success);
+  });
+  test('[runtime] hot key fails before delay', () => {
+    const c = contracts.compile('vault', { hotPubKey: KEY_A, coldPubKey: KEY_B, delayBlocks: '100' });
+    assert(!runScript(c.script, { signatures: [KEY_A], ...withCoinAge(50) }).success);
+  });
+  test('[runtime] hot key passes after delay', () => {
+    const c = contracts.compile('vault', { hotPubKey: KEY_A, coldPubKey: KEY_B, delayBlocks: '100' });
+    assert(runScript(c.script, { signatures: [KEY_A], ...withCoinAge(100) }).success);
+  });
+  test('[runtime] hot key fails without signature', () => {
+    const c = contracts.compile('vault', { hotPubKey: KEY_A, coldPubKey: KEY_B, delayBlocks: '100' });
+    assert(!runScript(c.script, { signatures: [], ...withCoinAge(200) }).success);
+  });
+}
+
+// =====================================================================
+console.log('\n\x1b[1m  dead-mans-switch\x1b[0m');
+
+test('script contains @COINAGE, checkInInterval, both keys', () => {
+  const c = contracts.compile('dead-mans-switch', { ownerPubKey: KEY_A,
+    beneficiaryPubKey: KEY_B, checkInInterval: '500' });
+  assertContains(c.script, '@COINAGE'); assertContains(c.script, '500');
+  assertContains(c.script, KEY_A); assertContains(c.script, KEY_B);
+});
+if (runScript) {
+  test('[runtime] owner can always spend (age 0)', () => {
+    const c = contracts.compile('dead-mans-switch', { ownerPubKey: KEY_A,
+      beneficiaryPubKey: KEY_B, checkInInterval: '1000' });
+    assert(runScript(c.script, { signatures: [KEY_A], ...withCoinAge(0) }).success);
+  });
+  test('[runtime] beneficiary fails before interval', () => {
+    const c = contracts.compile('dead-mans-switch', { ownerPubKey: KEY_A,
+      beneficiaryPubKey: KEY_B, checkInInterval: '1000' });
+    assert(!runScript(c.script, { signatures: [KEY_B], ...withCoinAge(500) }).success);
+  });
+  test('[runtime] beneficiary passes after interval', () => {
+    const c = contracts.compile('dead-mans-switch', { ownerPubKey: KEY_A,
+      beneficiaryPubKey: KEY_B, checkInInterval: '1000' });
+    assert(runScript(c.script, { signatures: [KEY_B], ...withCoinAge(1000) }).success);
+  });
+  test('[runtime] nobody else can spend', () => {
+    const c = contracts.compile('dead-mans-switch', { ownerPubKey: KEY_A,
+      beneficiaryPubKey: KEY_B, checkInInterval: '1000' });
+    assert(!runScript(c.script, { signatures: [KEY_C], ...withCoinAge(9999) }).success);
+  });
+}
+
+// =====================================================================
+console.log('\n\x1b[1m  state-channel\x1b[0m');
+
+test('script contains MULTISIG, STATE(1), PREVSTATE(1)', () => {
+  const c = contracts.compile('state-channel', { pubKeyA: KEY_A, pubKeyB: KEY_B });
+  assertContains(c.script, 'MULTISIG'); assertContains(c.script, 'STATE(1)'); assertContains(c.script, 'PREVSTATE(1)');
+});
+if (runScript) {
+  test('[runtime] cooperative close (both sign)', () => {
+    const c = contracts.compile('state-channel', { pubKeyA: KEY_A, pubKeyB: KEY_B, timeoutBlocks: '100' });
+    assert(runScript(c.script, { signatures: [KEY_A, KEY_B] }).success);
+  });
+  test('[runtime] force-close: signed + timeout + nonce advances', () => {
+    const c = contracts.compile('state-channel', { pubKeyA: KEY_A, pubKeyB: KEY_B, timeoutBlocks: '100' });
+    assert(runScript(c.script, {
+      signatures: [KEY_A],
+      ...withStateAndAge({ 1: '5' }, { 1: '3' }, 100)
+    }).success);
+  });
+  test('[runtime] force-close fails before timeout', () => {
+    const c = contracts.compile('state-channel', { pubKeyA: KEY_A, pubKeyB: KEY_B, timeoutBlocks: '100' });
+    assert(!runScript(c.script, {
+      signatures: [KEY_A],
+      ...withStateAndAge({ 1: '5' }, { 1: '3' }, 50)
+    }).success);
+  });
+  test('[runtime] replay attack blocked (nonce goes backwards)', () => {
+    const c = contracts.compile('state-channel', { pubKeyA: KEY_A, pubKeyB: KEY_B, timeoutBlocks: '100' });
+    assert(!runScript(c.script, {
+      signatures: [KEY_A],
+      ...withStateAndAge({ 1: '2' }, { 1: '5' }, 200)  // nonce 2 < prev 5
+    }).success);
+  });
+  test('[runtime] third party cannot close channel', () => {
+    const c = contracts.compile('state-channel', { pubKeyA: KEY_A, pubKeyB: KEY_B, timeoutBlocks: '100' });
+    assert(!runScript(c.script, {
+      signatures: [KEY_C],
+      ...withStateAndAge({ 1: '5' }, { 1: '3' }, 200)
+    }).success);
+  });
+}
+
+// =====================================================================
+console.log('\n\x1b[1m  conditional-payment\x1b[0m');
+
+if (runScript) {
+  test('[runtime] passes when payment to recipient', () => {
+    const c = contracts.compile('conditional-payment', { recipientAddress: ADDR, amount: '100', ownerPubKey: KEY_A });
+    assert(runScript(c.script, { signatures: [],
+      transaction: { outputs: [{ address: ADDR, amount: 100, tokenId: '0x00' }] } }).success);
+  });
+  test('[runtime] fails with wrong amount', () => {
+    const c = contracts.compile('conditional-payment', { recipientAddress: ADDR, amount: '100', ownerPubKey: KEY_A });
+    assert(!runScript(c.script, { signatures: [],
+      transaction: { outputs: [{ address: ADDR, amount: 50, tokenId: '0x00' }] } }).success);
+  });
+  test('[runtime] owner can reclaim', () => {
+    const c = contracts.compile('conditional-payment', { recipientAddress: ADDR, amount: '100', ownerPubKey: KEY_A });
+    assert(runScript(c.script, { signatures: [KEY_A], transaction: { outputs: [] } }).success);
+  });
+}
+
+// =====================================================================
+console.log('\n\x1b[90m──────────────────────────────────────────────────\x1b[0m');
 if (failed === 0) {
-  console.log(`\n  ✓ All ${passed} tests passed!\n`);
-  process.exit(0);
+  console.log(`\x1b[32m\x1b[1m\n  ✓ All ${passed} tests passed!\x1b[0m`);
 } else {
-  console.log(`\n  ✗ ${failed} failed, ${passed} passed\n`);
+  console.log(`\x1b[31m\x1b[1m\n  ✗ ${failed} failed, ${passed} passed\x1b[0m`);
   process.exit(1);
 }

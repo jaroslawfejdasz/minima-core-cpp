@@ -35,9 +35,18 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.rules = exports.ALL_RULES = void 0;
 exports.lint = lint;
+exports.analyze = lint;
 exports.lintOrThrow = lintOrThrow;
 const tokenizer_1 = require("./tokenizer");
 const rules_1 = require("./rules");
+/**
+ * Rough instruction count estimate — counts statement keywords.
+ * Used for early detection of scripts approaching the 1024 limit.
+ */
+function estimateInstructions(script) {
+    const stmtKeywords = /\b(LET|IF|WHILE|RETURN|ASSERT|EXEC|MAST)\b/gi;
+    return (script.match(stmtKeywords) ?? []).length;
+}
 function lint(script, options = {}) {
     const rules = options.rules ?? rules_1.ALL_RULES;
     const ignore = new Set(options.ignoreRules ?? []);
@@ -48,13 +57,24 @@ function lint(script, options = {}) {
         all.push(...ruleErrors);
     }
     const filtered = all.filter(e => !ignore.has(e.code));
+    const errors = filtered.filter(e => e.severity === 'error');
+    const warnings = filtered.filter(e => e.severity === 'warning');
+    const infos = filtered.filter(e => e.severity === 'info');
+    const summary = {
+        errors: errors.length,
+        warnings: warnings.length,
+        infos: infos.length,
+        total: filtered.length,
+        instructionEstimate: estimateInstructions(script),
+    };
     return {
-        errors: filtered.filter(e => e.severity === 'error'),
-        warnings: filtered.filter(e => e.severity === 'warning'),
-        infos: filtered.filter(e => e.severity === 'info'),
+        errors,
+        warnings,
+        infos,
         all: filtered,
-        hasErrors: filtered.some(e => e.severity === 'error'),
-        script
+        hasErrors: errors.length > 0,
+        script,
+        summary,
     };
 }
 function lintOrThrow(script, options) {
