@@ -1,0 +1,23 @@
+{
+  "name": "minima-contracts",
+  "version": "0.1.0",
+  "description": "Ready-to-use KISS VM smart contract patterns for Minima blockchain",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {},
+  "scripts": {
+    "build": "tsc",
+    "test": "node tests/run.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "minima",
+    "blockchain",
+    "kiss-vm",
+    "smart-contracts"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

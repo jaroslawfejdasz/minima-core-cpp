@@ -1,0 +1,10 @@
+{
+  "phase": 3,
+  "phase_name": "minima-contracts",
+  "step": "start",
+  "iteration": 1,
+  "status": "running",
+  "last_report": "2026-03-12T22:25",
+  "phases_done": ["minima-test", "kiss-vm-lint"],
+  "notes": "kiss-vm-lint: 25 testów, 10 reguł, CLI działa"
+}
