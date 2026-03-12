@@ -54,7 +54,7 @@ export function tokenize(script: string): Token[] {
         else if (script[i] === ']') { depth--; if (depth === 0) { i++; break; } }
         val += script[i++];
       }
-      tokens.push({ type: 'STRING', value: val.trim() });
+      tokens.push({ type: 'STRING', value: val });
       continue;
     }
 
@@ -63,6 +63,7 @@ export function tokenize(script: string): Token[] {
       let val = '0x';
       i += 2;
       while (i < script.length && /[0-9a-fA-F]/.test(script[i])) val += script[i++];
+      if (val === '0x') throw new Error(`Invalid hex literal at position ${i - 2}: '0x' must be followed by hex digits`);
       tokens.push({ type: 'HEX', value: val });
       continue;
     }

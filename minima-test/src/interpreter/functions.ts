@@ -160,10 +160,17 @@ const FUNCTIONS: Record<string, FnImpl> = {
     // In real impl verifies EC signature. Mock: always false unless explicitly mocked
     return MiniValue.boolean(false);
   },
-  MULTISIG: (args) => {
-    // MULTISIG(n, pub1, pub2, ... pubN, sig1, sig2, ... sigN) - n of N signatures required
-    // Simplified mock
-    return MiniValue.boolean(false);
+  MULTISIG: (args, env) => {
+    // MULTISIG(n, key1, key2, ...) - at least n of the given keys must have signed
+    // Usage: MULTISIG(2, 0xpub1, 0xpub2, 0xpub3) = 2-of-3
+    if (args.length < 2) throw new Error('MULTISIG requires at least 2 arguments');
+    const required = args[0].asNumber();
+    const keys = args.slice(1).map(a => a.raw.toLowerCase());
+    let count = 0;
+    for (const key of keys) {
+      if (env.signatures.some(s => s.toLowerCase() === key)) count++;
+    }
+    return MiniValue.boolean(count >= required);
   },
 
   // === STATE ===

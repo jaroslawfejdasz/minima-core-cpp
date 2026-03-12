@@ -54,7 +54,7 @@ function tokenize(script) {
                 }
                 val += script[i++];
             }
-            tokens.push({ type: 'STRING', value: val.trim() });
+            tokens.push({ type: 'STRING', value: val });
             continue;
         }
         // HEX 0x...
@@ -63,6 +63,8 @@ function tokenize(script) {
             i += 2;
             while (i < script.length && /[0-9a-fA-F]/.test(script[i]))
                 val += script[i++];
+            if (val === '0x')
+                throw new Error(`Invalid hex literal at position ${i - 2}: '0x' must be followed by hex digits`);
             tokens.push({ type: 'HEX', value: val });
             continue;
         }

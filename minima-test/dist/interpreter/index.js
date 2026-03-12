@@ -206,7 +206,8 @@ class KissVMInterpreter {
     executeExec() {
         this.advance(); // EXEC
         const script = this.evaluateExpression();
-        // Execute sub-script
+        // Execute sub-script — shares the same Environment (and instruction counter)
+        // This is intentional: EXEC cannot be used to bypass the 1024 instruction limit
         const sub = new KissVMInterpreter(this.env);
         const result = sub.run(script.asString());
         if (!result)
