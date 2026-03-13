@@ -116,7 +116,7 @@ git clone https://github.com/YOUR_ORG/minima-developer-toolkit
 cd minima-developer-toolkit
 npm install          # installs all workspace deps
 npm run build        # builds all packages
-npm test             # runs all 197 tests
+npm test             # runs all 202 tests
 ```
 
 ---
