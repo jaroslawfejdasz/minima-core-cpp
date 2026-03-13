@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Scaffold CLI for Minima MiniDapp projects",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "bin": {
     "create-minidapp": "./dist/cli.js"
   },
