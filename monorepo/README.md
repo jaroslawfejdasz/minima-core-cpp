@@ -95,7 +95,7 @@ Smart contracts use **KISS VM** — a simple but powerful scripting language. Ea
 ```
 minima-developer-toolkit/
 ├── packages/
-│   ├── minima-test/          # KISS VM test runner (75 tests)
+│   ├── minima-test/          # KISS VM test runner (80 tests)
 │   ├── kiss-vm-lint/         # Static analyzer (40 tests)
 │   ├── minima-contracts/     # Contract library (59 tests)
 │   └── create-minidapp/      # Scaffold CLI (23 tests)
@@ -105,7 +105,7 @@ minima-developer-toolkit/
 └── README.md
 ```
 
-**Total: 197 automated tests across all packages.**
+**Total: 202 automated tests across all packages.**
 
 ---
 
@@ -116,7 +116,7 @@ git clone https://github.com/YOUR_ORG/minima-developer-toolkit
 cd minima-developer-toolkit
 npm install          # installs all workspace deps
 npm run build        # builds all packages
-npm test             # runs all 197 tests
+npm test             # runs all 202 tests
 ```
 
 ---
