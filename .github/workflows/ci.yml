@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: |
+            minima-test/package-lock.json
+            kiss-vm-lint/package-lock.json
+            minima-contracts/package-lock.json
+            create-minidapp/package-lock.json
+
+      - name: Install & build minima-test
+        working-directory: minima-test
+        run: npm ci && npm run build
+
+      - name: Test minima-test
+        working-directory: minima-test
+        run: npm test
+
+      - name: Install & build kiss-vm-lint
+        working-directory: kiss-vm-lint
+        run: npm ci && npm run build
+
+      - name: Test kiss-vm-lint
+        working-directory: kiss-vm-lint
+        run: npm test
+
+      - name: Install & build minima-contracts
+        working-directory: minima-contracts
+        run: npm ci && npm run build
+
+      - name: Test minima-contracts
+        working-directory: minima-contracts
+        run: npm test
+
+      - name: Install & build create-minidapp
+        working-directory: create-minidapp
+        run: npm ci && npm run build
+
+      - name: Test create-minidapp
+        working-directory: create-minidapp
+        run: npm test
+
+  publish:
+    name: Publish to npm
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish minima-test
+        working-directory: minima-test
+        run: npm ci && npm run build && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish kiss-vm-lint
+        working-directory: kiss-vm-lint
+        run: npm ci && npm run build && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish minima-contracts
+        working-directory: minima-contracts
+        run: npm ci && npm run build && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish create-minidapp
+        working-directory: create-minidapp
+        run: npm ci && npm run build && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

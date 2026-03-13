@@ -1,0 +1,33 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  lint-and-typecheck:
+    name: TypeScript & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Typecheck minima-test
+        working-directory: minima-test
+        run: npm ci && npx tsc --noEmit
+
+      - name: Typecheck kiss-vm-lint
+        working-directory: kiss-vm-lint
+        run: npm ci && npx tsc --noEmit
+
+      - name: Typecheck minima-contracts
+        working-directory: minima-contracts
+        run: npm ci && npx tsc --noEmit
+
+      - name: Typecheck create-minidapp
+        working-directory: create-minidapp
+        run: npm ci && npx tsc --noEmit
