@@ -1,35 +1,36 @@
 {
-  "phase": 7,
-  "phase_name": "FINAL_AUDIT_COMPLETE",
+  "phase": 8,
+  "phase_name": "FINAL_AUDIT_V3_COMPLETE",
   "step": "ready_for_github",
-  "iteration": 7,
+  "iteration": 8,
   "status": "complete",
-  "last_report": "2026-03-13T01:26",
-  "phases_done": ["minima-test", "kiss-vm-lint", "minima-contracts", "create-minidapp", "monorepo+docs+ci", "final_audit", "deep_audit_v2"],
+  "last_report": "2026-03-13T01:36",
+  "phases_done": ["minima-test", "kiss-vm-lint", "minima-contracts", "create-minidapp", "monorepo+docs+ci", "final_audit", "deep_audit_v2", "pre_github_audit_v3"],
   "final_stats": {
     "packages": 4,
     "total_tests": 202,
     "test_breakdown": {
-      "create-minidapp": 23,
+      "minima-test": 80,
       "kiss-vm-lint": 40,
       "minima-contracts": 59,
-      "minima-test": 80
+      "create-minidapp": 23
     },
     "typescript_errors": 0,
-    "failures": 0,
-    "source_files": 28,
-    "ci_workflows": 2,
-    "contracts": 12,
-    "lint_rules": 19
+    "failures": 0
   },
-  "bugs_fixed_in_deep_audit": [
-    "Missing 'types' field in create-minidapp/package.json → added",
-    "EXEC instruction sharing not documented → added comment",
-    "Verified all 12 contracts compile correctly at runtime",
-    "Verified scaffold generates valid dapp.conf + index.html for all 3 templates",
-    "Verified linter catches all 8 test patterns (errors + warnings)",
-    "npm pack dry-run clean for all 4 packages"
+  "fixes_in_v3_audit": [
+    "engines.node >=14 → >=16 (sha3-256 requires >=16)",
+    "keywords: added utxo, web3, dapp to all packages",
+    "Verified all bin fields have shebang",
+    "Verified no TODO/FIXME in production code",
+    "npm pack --dry-run clean"
+  ],
+  "known_limitations": [
+    "CHECKSIG: mock always false — needs real secp256k1",
+    "PROOF: mock always false — needs real MMR",
+    "0X uppercase prefix rejected — Minima spec",
+    "EXEC shares instruction counter with parent — intentional"
   ],
   "ready_for_github": true,
-  "notes": "Deep audit v2 complete. 202/202 tests pass. Clean build from scratch. npm pack dry-run verified. Waiting for GitHub repo URL."
+  "awaiting": "GitHub repo URL from user"
 }

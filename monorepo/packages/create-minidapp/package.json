@@ -13,10 +13,13 @@
     "prepublishOnly": "npm run build"
   },
   "keywords": [
-    "minima",
+    "cli",
+    "dapp",
     "minidapp",
+    "minima",
     "scaffold",
-    "cli"
+    "utxo",
+    "web3"
   ],
   "license": "MIT",
   "devDependencies": {
@@ -33,7 +36,7 @@
   },
   "homepage": "https://github.com/YOUR_ORG/minima-developer-toolkit/tree/main/packages/create-minidapp#readme",
   "engines": {
-    "node": ">=14"
+    "node": ">=16"
   },
   "files": [
     "dist",

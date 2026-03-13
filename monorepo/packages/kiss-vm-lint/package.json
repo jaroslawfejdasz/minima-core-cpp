@@ -18,17 +18,20 @@
     "LICENSE"
   ],
   "keywords": [
-    "minima",
-    "kiss-vm",
     "blockchain",
+    "dapp",
+    "kiss-vm",
     "linter",
+    "minima",
     "smart-contracts",
-    "static-analysis"
+    "static-analysis",
+    "utxo",
+    "web3"
   ],
   "author": "",
   "license": "MIT",
   "engines": {
-    "node": ">=14"
+    "node": ">=16"
   },
   "devDependencies": {
     "typescript": "^5.0.0"

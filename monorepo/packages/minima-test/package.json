@@ -13,11 +13,14 @@
     "dev": "tsc --watch"
   },
   "keywords": [
-    "minima",
     "blockchain",
+    "dapp",
     "kissvm",
+    "minima",
+    "smart-contracts",
     "testing",
-    "smart-contracts"
+    "utxo",
+    "web3"
   ],
   "license": "MIT",
   "devDependencies": {
@@ -34,7 +37,7 @@
   },
   "homepage": "https://github.com/YOUR_ORG/minima-developer-toolkit/tree/main/packages/minima-test#readme",
   "engines": {
-    "node": ">=14"
+    "node": ">=16"
   },
   "files": [
     "dist",
