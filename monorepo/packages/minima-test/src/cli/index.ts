@@ -88,6 +88,12 @@ async function main() {
 
   banner();
 
+  if (command === '--version' || command === '-v' || command === 'version') {
+    const pkg = require('../../package.json');
+    console.log(`  v${pkg.version}`);
+    process.exit(0);
+  }
+
   if (command === 'run' || !command) {
     const targetDir = args[1] || './tests';
     const files = await findTestFiles(path.resolve(targetDir));
