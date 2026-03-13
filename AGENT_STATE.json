@@ -1,27 +1,23 @@
 {
   "phase": 5,
-  "phase_name": "DONE",
+  "phase_name": "AUDITED",
   "step": "ready_for_github",
   "iteration": 4,
-  "status": "audited_and_clean",
+  "status": "audit_complete",
   "last_report": "2026-03-13T01:06",
   "phases_done": ["minima-test", "kiss-vm-lint", "minima-contracts", "create-minidapp", "monorepo+docs+ci"],
   "final_stats": {
     "packages": 4,
-    "total_tests": 197,
+    "total_tests": 202,
     "failures": 0,
-    "ci_workflows": 2,
-    "contracts": 12,
-    "ts_errors": 0
+    "ci_workflows": 2
   },
-  "audit_findings": [
-    "FIXED: Stare PascalCase artifacts w dist/contracts/ - usuniete",
-    "FIXED: .gitignore dodany do monorepo",
-    "OK: TypeScript zero errors (wszystkie 4 pakiety)",
-    "OK: npm pack dry-run wszystkie 4 pakiety",
-    "OK: 197/197 testow przechodzi",
-    "KNOWN: YOUR_ORG w README.md - wymaga URL repo przed publishem"
+  "bugs_fixed_in_final_audit": [
+    "CRITICAL: MULTISIG always returned FALSE — fixed n-of-k checking",
+    "MEDIUM: String trim() in tokenizer destroyed whitespace — fixed",
+    "MEDIUM: runScript API missing shortcuts (block, state, coinAge) — added",
+    "LOW: 0x without hex digits gave silent token — now throws"
   ],
-  "waiting_for": "GitHub repo URL from user",
-  "location": "/app/monorepo"
+  "location": "/app/monorepo",
+  "notes": "Pełny audit zakończony. 202 testy, 0 failów. Wszystkie 12 kontraktów: compile+lint+runtime clean. Gotowe do GitHub."
 }
