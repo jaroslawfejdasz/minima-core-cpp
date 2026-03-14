@@ -1,33 +1,39 @@
 {
-  "phase": 29,
-  "phase_name": "FINAL_AUDIT_PASSED_READY_FOR_GITHUB",
-  "iteration": 29,
+  "phase": 30,
+  "phase_name": "FINAL_VERIFIED_AWAITING_GITHUB_AUTH",
+  "iteration": 30,
   "status": "awaiting_github_auth",
-  "last_verified": "2026-03-14T04:36",
+  "last_verified": "2026-03-14T04:41",
   "final_audit": {
-    "date": "2026-03-14T04:36",
+    "date": "2026-03-14T04:41",
     "tests_total": 198,
     "test_failures": 0,
     "typescript_errors": 0,
     "packages": {
-      "minima-test":      {"tests": 75,  "status": "✅"},
-      "kiss-vm-lint":     {"tests": 40,  "status": "✅"},
-      "minima-contracts": {"tests": 60,  "status": "✅"},
-      "create-minidapp":  {"tests": 23,  "status": "✅"}
+      "minima-test":      {"version": "0.1.0", "tests": 75,  "status": "✅"},
+      "kiss-vm-lint":     {"version": "0.1.0", "tests": 40,  "status": "✅"},
+      "minima-contracts": {"version": "0.1.0", "tests": 60,  "status": "✅"},
+      "create-minidapp":  {"version": "0.1.0", "tests": 23,  "status": "✅"}
     },
-    "npm_pack": "clean (no missing files, no placeholder leaks)",
-    "github_actions_ci": "ci.yml + pr-checks.yml (Node 18/20/22)",
-    "docs": "README.md per package + root README + CHANGELOG + CONTRIBUTING + LICENSE",
-    "security_issues_fixed": [
+    "monorepo_build": "npm run build from root = 0 errors",
+    "monorepo_test": "npm test from root = all 198 passing",
+    "npm_pack": "clean — 39 / 19 / 43 / 23 files, no placeholders",
+    "github_actions_ci": ".github/workflows/ci.yml + pr-checks.yml (Node 18/20/22)",
+    "docs": "README per package + root README + CHANGELOG + CONTRIBUTING + MIT LICENSE",
+    "security_fixes": [
       "state-channel: nonce replay (GTE→GT)",
       "MULTISIG: always false → real n-of-k",
-      "tokenizer: 0x empty hex → validation error",
+      "tokenizer: 0x empty → validation error",
       "tokenizer: string trim → whitespace preserved"
     ],
-    "gitignore": "node_modules + dist + *.tsbuildinfo + *.js.map",
-    "cli_smoke": "all 3 CLIs: --help, eval, lint working"
+    "cli_smoke_tests": {
+      "minima-test": "run tests/ → 75/75",
+      "kiss-vm-lint": "lint clean.kiss → 0 issues, bad.kiss → E011+W010",
+      "create-minidapp": "--list, --help, scaffold basic → 5 files generated"
+    },
+    "gitignore": "node_modules/ dist/ *.js.map .DS_Store *.tsbuildinfo"
   },
-  "blocker": "GitHub connector needs 'repo' scope to push",
-  "user_action_needed": "Re-authorize GitHub with 'repo' scope → I push immediately",
+  "blocker": "GitHub connector needs 'repo' scope",
+  "user_action_needed": "Re-authorize GitHub connector with 'repo' scope in the agent settings — then I push in the next cycle",
   "repo_target": "https://github.com/jaroslawfejdasz/-KISS-VM-interpreter"
 }
