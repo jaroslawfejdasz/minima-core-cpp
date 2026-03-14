@@ -446,6 +446,25 @@ export const R006_ChecksigNote: Rule = (tokens) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // EXPORT ALL
 // ─────────────────────────────────────────────────────────────────────────────
+// W080: Potential infinite loop — WHILE with literal TRUE or non-zero constant
+export const W080_InfiniteLoop: Rule = (tokens) => {
+  const issues: LintError[] = [];
+  for (let i = 0; i < tokens.length - 2; i++) {
+    const t = tokens[i];
+    if (t.type === 'KEYWORD' && t.value === 'WHILE') {
+      const next = tokens[i + 1];
+      if (
+        (next.type === 'BOOLEAN' && next.value === 'TRUE') ||
+        (next.type === 'NUMBER' && parseFloat(next.value) !== 0)
+      ) {
+        issues.push(warn('W080', `Potential infinite loop: WHILE ${next.value} — condition may never be false`, t.pos));
+      }
+    }
+  }
+  return issues;
+};
+
+
 export const ALL_RULES: Rule[] = [
   E011_NoReturn,
   E020_InvalidStatement,
@@ -466,4 +485,5 @@ export const ALL_RULES: Rule[] = [
   W070_UseBeforeLet,
   R004_InstructionLimit,
   R006_ChecksigNote,
+  W080_InfiniteLoop,
 ];
