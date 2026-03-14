@@ -1,35 +1,34 @@
 {
-  "phase": 24,
-  "phase_name": "FINAL_VERIFIED_READY_FOR_GITHUB",
-  "iteration": 24,
-  "status": "ready_to_push",
-  "last_verified": "2026-03-14T03:31",
+  "phase": 25,
+  "phase_name": "FINAL_AUDITED_READY_FOR_GITHUB",
+  "iteration": 25,
+  "status": "awaiting_github_auth",
+  "last_verified": "2026-03-14T03:41",
   "final_audit": {
     "date": "2026-03-14",
     "tests_total": 198,
     "test_failures": 0,
     "typescript_errors": 0,
-    "npm_vulnerabilities": 0,
-    "git_status": "clean",
-    "audit_fixes_applied": [
-      "String whitespace preserved (removed .trim())",
-      "MULTISIG n-of-k implemented",
-      "Empty 0x hex literal throws error",
-      "EXEC instruction counter documented"
+    "audit_fixes_in_this_run": [
+      "prepublishOnly dodany do minima-test package.json",
+      "scaffold() API potwierdzone (projectName, nie name)",
+      "HTLC compile potwierdzone z poprawnym scriptHash",
+      "wszystkie bin mają shebang #!/usr/bin/env node",
+      "dist/ w .gitignore OK (files[] w package.json dla npm publish)"
     ],
     "packages": {
-      "minima-test": {"tests": 75, "status": "OK"},
-      "kiss-vm-lint": {"tests": 40, "status": "OK"},
-      "minima-contracts": {"tests": 60, "status": "OK"},
-      "create-minidapp": {"tests": 23, "status": "OK"}
+      "minima-test":     {"tests": 75, "status": "OK", "contracts": "KISS VM interpreter + test runner"},
+      "kiss-vm-lint":    {"tests": 40, "status": "OK", "contracts": "static analyzer 30 rules"},
+      "minima-contracts":{"tests": 60, "status": "OK", "contracts": "12 contract templates"},
+      "create-minidapp": {"tests": 23, "status": "OK", "contracts": "scaffold CLI 3 templates"}
     },
     "structure": {
       "monorepo": "npm workspaces",
-      "ci": [".github/workflows/ci.yml", ".github/workflows/pr-checks.yml"],
-      "docs": ["README.md", "CHANGELOG.md", "CONTRIBUTING.md", "packages/*/README.md"],
-      "license": "MIT (root + all packages)"
+      "ci": ["ci.yml (Node 18/20/22)", "pr-checks.yml"],
+      "docs": "README.md per package + root README + CHANGELOG + CONTRIBUTING",
+      "license": "MIT"
     }
   },
-  "blocker": "GitHub connector has read:org + read:user scopes only — no repo write. Need 'repo' scope.",
-  "user_action_needed": "Re-authorize GitHub connector with 'repo' scope, then trigger push"
+  "blocker": "GitHub connector: read:org+read:user only. Need 'repo' scope to push.",
+  "user_action_needed": "Re-authorize GitHub connector with 'repo' scope → then I push"
 }
