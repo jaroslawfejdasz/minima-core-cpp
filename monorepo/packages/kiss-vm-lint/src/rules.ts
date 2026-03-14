@@ -259,29 +259,37 @@ export const E082_WrongArgCount: Rule = (tokens) => {
     const arity = FUNCTION_ARITY[t.value];
     if (!arity) continue;
 
-    // Count arguments
+    // Count arguments — KISS VM uses space-separated args (no commas)
+    // Strategy: count top-level value tokens (skip nested parens as one arg)
     let j = i + 2;
     let depth = 1;
     let argCount = 0;
-    let hasAnyArg = false;
 
     while (j < tokens.length && depth > 0) {
       const tk = tokens[j];
-      if (tk.type === 'LPAREN') depth++;
-      else if (tk.type === 'RPAREN') {
+      if (tk.type === 'LPAREN') {
+        depth++;
+        if (depth === 2) argCount++; // opening paren of a nested call = 1 arg
+        j++;
+        continue;
+      }
+      if (tk.type === 'RPAREN') {
         depth--;
-        if (depth === 0) { if (hasAnyArg) argCount++; break; }
+        j++;
+        continue;
       }
-      else if (tk.type === 'COMMA' && depth === 1) {
-        argCount++;
-        hasAnyArg = true;
-      }
-      else if (tk.type !== 'EOF') {
-        hasAnyArg = true;
+      if (tk.type === 'COMMA') { j++; continue; } // ignore commas if present
+      if (tk.type === 'EOF') break;
+      // At depth 1: each distinct value token starts a new argument
+      // But consecutive value tokens (like 0xAA + 0xBB) are separate args
+      if (depth === 1) {
+        const valueTypes = new Set(['NUMBER','HEX','STRING','BOOLEAN','VARIABLE','GLOBAL','KEYWORD']);
+        if (valueTypes.has(tk.type)) {
+          argCount++;
+        }
       }
       j++;
     }
-    if (hasAnyArg && argCount === 0) argCount = 1;
 
     const [min, max] = arity;
     if (t.value === 'MULTISIG') {
