@@ -466,4 +466,22 @@ export const ALL_RULES: Rule[] = [
   W070_UseBeforeLet,
   R004_InstructionLimit,
   R006_ChecksigNote,
+  W051_InfiniteLoop,
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// W051 — Potential infinite loop: WHILE with literal TRUE condition
+// ─────────────────────────────────────────────────────────────────────────────
+export const W051_InfiniteLoop: Rule = (tokens) => {
+  const warnings: LintMessage[] = [];
+  for (let i = 0; i < tokens.length - 1; i++) {
+    const t = tokens[i];
+    if (t.type === 'KEYWORD' && t.value === 'WHILE') {
+      const next = tokens[i + 1];
+      if (next && next.type === 'BOOLEAN' && next.value === 'TRUE') {
+        warnings.push(warn('W051', 'WHILE TRUE — potential infinite loop. Ensure there is a RETURN inside the body.', t.pos));
+      }
+    }
+  }
+  return warnings;
+};
