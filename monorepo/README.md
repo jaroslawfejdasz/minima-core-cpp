@@ -3,7 +3,7 @@
   <p><strong>The complete developer toolkit for building on the <a href="https://minima.global">Minima blockchain</a>.</strong></p>
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-  [![Tests](https://img.shields.io/badge/tests-197%20passing-brightgreen)](https://github.com/YOUR_ORG/minima-developer-toolkit/actions)
+  [![Tests](https://img.shields.io/badge/tests-197%20passing-brightgreen)](https://github.com/jaroslawfejdasz/-KISS-VM-interpreter/actions)
 </div>
 
 ---
@@ -112,7 +112,7 @@ minima-developer-toolkit/
 ## Development
 
 ```bash
-git clone https://github.com/YOUR_ORG/minima-developer-toolkit
+git clone https://github.com/jaroslawfejdasz/-KISS-VM-interpreter
 cd minima-developer-toolkit
 npm install          # installs all workspace deps
 npm run build        # builds all packages
