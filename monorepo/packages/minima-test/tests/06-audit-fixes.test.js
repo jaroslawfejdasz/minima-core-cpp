@@ -277,3 +277,33 @@ describe('Security & Spec Fixes (BUG #5 #6 #7)', () => {
     })).toFail();
   });
 });
+
+describe('Nested EXEC instruction counting (BUG #5 fix)', () => {
+  it('nested EXEC counts instructions in shared counter', () => {
+    // inner=500 LETs + outer=500 LETs = ~1005 total — must PASS
+    let inner = '';
+    for (let i = 0; i < 500; i++) inner += `LET a${i} = ${i} `;
+    inner += 'RETURN TRUE';
+    let body = `EXEC [${inner}] `;
+    for (let i = 0; i < 500; i++) body += `LET b${i} = ${i} `;
+    body += 'RETURN TRUE';
+    const r = runScript(`EXEC [${body}] RETURN TRUE`);
+    if (!r.success) throw new Error('Expected PASS: ' + r.error);
+    if (r.instructions < 1000) throw new Error(`Instruction count too low: ${r.instructions} (shared counter not working)`);
+  });
+
+  it('nested EXEC blocks when combined total > 1024', () => {
+    let inner = '';
+    for (let i = 0; i < 510; i++) inner += `LET a${i} = ${i} `;
+    inner += 'RETURN TRUE';
+    let body = `EXEC [${inner}] `;
+    for (let i = 0; i < 510; i++) body += `LET b${i} = ${i} `;
+    body += 'RETURN TRUE';
+    expect(runScript(`EXEC [${body}] RETURN TRUE`)).toThrow('MAX_INSTRUCTIONS exceeded');
+  });
+
+  it('EXEC sub-script continues parent execution after return', () => {
+    // EXEC runs sub-script, returns, parent continues
+    expect(runScript('EXEC [LET x = 99 RETURN TRUE] RETURN x EQ 99')).toPass();
+  });
+});

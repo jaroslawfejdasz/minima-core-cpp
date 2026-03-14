@@ -34,6 +34,9 @@ export class KissVMInterpreter {
   run(script: string, resetCounter = true): boolean {
     this.tokens = tokenize(script);
     this.pos = 0;
+    // Save parent's return state (for nested EXEC — shared env)
+    const savedReturned = this.env.returned;
+    const savedReturnValue = this.env.returnValue;
     this.env.returned = false;
     this.env.returnValue = null;
     if (resetCounter) this.env.instructionCount = 0;
@@ -41,9 +44,16 @@ export class KissVMInterpreter {
     this.executeBlock();
 
     if (!this.env.returned) {
+      // Restore parent state and throw
+      this.env.returned = savedReturned;
+      this.env.returnValue = savedReturnValue;
       throw new Error('Script did not RETURN a value');
     }
-    return this.env.returnValue!.asBoolean();
+    const result = this.env.returnValue!.asBoolean();
+    // Restore parent's return state so outer block can continue after EXEC
+    this.env.returned = savedReturned;
+    this.env.returnValue = savedReturnValue;
+    return result;
   }
 
   private executeBlock() {
