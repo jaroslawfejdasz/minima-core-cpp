@@ -31,12 +31,12 @@ export class KissVMInterpreter {
     return true;
   }
 
-  run(script: string): boolean {
+  run(script: string, resetCounter = true): boolean {
     this.tokens = tokenize(script);
     this.pos = 0;
     this.env.returned = false;
     this.env.returnValue = null;
-    this.env.instructionCount = 0;
+    if (resetCounter) this.env.instructionCount = 0;
 
     this.executeBlock();
 
@@ -195,9 +195,9 @@ export class KissVMInterpreter {
     this.advance(); // EXEC
     const script = this.evaluateExpression();
     // Execute sub-script — shares the same Environment (and instruction counter)
-    // This is intentional: EXEC cannot be used to bypass the 1024 instruction limit
+    // resetCounter=false: EXEC cannot bypass the 1024 instruction limit
     const sub = new KissVMInterpreter(this.env);
-    const result = sub.run(script.asString());
+    const result = sub.run(script.asString(), false);
     if (!result) throw new Error('EXEC sub-script returned FALSE');
   }
 
@@ -212,7 +212,7 @@ export class KissVMInterpreter {
     const mastScript = this.tryGetMastScript(hash);
     if (mastScript) {
       const sub = new KissVMInterpreter(this.env);
-      sub.run(mastScript);
+      sub.run(mastScript, false);
     }
   }
 
@@ -328,8 +328,16 @@ export class KissVMInterpreter {
       const op = this.advance().value;
       const right = this.parseUnary();
       if (op === '*') left = MiniValue.number(left.asNumber() * right.asNumber());
-      else if (op === '/') left = MiniValue.number(left.asNumber() / right.asNumber());
-      else if (op === '%') left = MiniValue.number(left.asNumber() % right.asNumber());
+      else if (op === '/') {
+        const divisor = right.asNumber();
+        if (divisor === 0) throw new Error('Division by zero');
+        left = MiniValue.number(left.asNumber() / divisor);
+      }
+      else if (op === '%') {
+        const divisor = right.asNumber();
+        if (divisor === 0) throw new Error('Modulo by zero');
+        left = MiniValue.number(left.asNumber() % divisor);
+      }
     }
     return left;
   }

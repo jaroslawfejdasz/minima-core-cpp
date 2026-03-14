@@ -178,7 +178,7 @@ const FUNCTIONS: Record<string, FnImpl> = {
   STATE: ([port], env) => {
     const p = port.asNumber();
     const sv = env.transaction?.stateVars?.[p];
-    if (sv === undefined) throw new Error(`State variable ${p} not found`);
+    if (sv === undefined) return MiniValue.number(0); // Minima spec: unset state = 0
     // Parse as number if numeric, hex if 0x-prefixed, otherwise string
     if (/^-?[0-9]+(\.[0-9]+)?$/.test(sv)) return MiniValue.number(Number(sv));
     if (sv.startsWith('0x') || sv.startsWith('0X')) return MiniValue.hex(sv);
@@ -187,7 +187,7 @@ const FUNCTIONS: Record<string, FnImpl> = {
   PREVSTATE: ([port], env) => {
     const p = port.asNumber();
     const sv = env.transaction?.prevStateVars?.[p];
-    if (sv === undefined) throw new Error(`Previous state variable ${p} not found`);
+    if (sv === undefined) return MiniValue.number(0); // Minima spec: unset state = 0
     // Parse as number if numeric, hex if 0x-prefixed, otherwise string
     if (/^-?[0-9]+(\.[0-9]+)?$/.test(sv)) return MiniValue.number(Number(sv));
     if (sv.startsWith('0x') || sv.startsWith('0X')) return MiniValue.hex(sv);

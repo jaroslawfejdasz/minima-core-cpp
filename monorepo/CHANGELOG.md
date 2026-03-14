@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.1] - 2026-03-14 — Post-Audit Fixes
+
+### Fixed
+- **minima-test**: Tokenizer incorrectly trimmed whitespace from string literals `[...]` — spaces now preserved
+- **minima-test**: `MULTISIG` always returned FALSE — now correctly implements n-of-k signature checking
+- **minima-test**: HEX literal `0x` without digits silently produced empty token — now throws parse error
+- **minima-test**: `EXEC` sub-script reset instruction counter, allowing bypass of 1024-instruction limit — fixed
+- **minima-test**: Division and modulo by zero produced `Infinity` — now throws a runtime error
+- **minima-test**: `STATE(n)` and `PREVSTATE(n)` threw for unset ports — now return `0` per Minima spec
+- **minima-test**: `globals` in `runScript()` options only accepted `MiniValue` — now also accepts `string` and `number` (auto-coerced)
+
+### Added
+- **minima-test**: 17 new regression tests covering all audit findings (92 total in minima-test package)
+
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),

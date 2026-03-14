@@ -45,7 +45,7 @@ export interface RunScriptOptions {
   inputIndex?: number;
   signatures?: string[];
   variables?: Record<string, MiniValue>;
-  globals?: Record<string, MiniValue>;
+  globals?: Record<string, MiniValue | string | number>;
   mastScripts?: Record<string, string>;   // hash -> script
   // Shorthand helpers — override specific globals without building full transaction
   blockHeight?: number;   // sets @BLOCK
@@ -86,9 +86,21 @@ export function runScript(script: string, options: RunScriptOptions = {}): Scrip
     }
   }
 
-  // Additional globals overrides
+  // Additional globals overrides — coerce string/number to MiniValue
   if (options.globals) {
-    for (const [k, v] of Object.entries(options.globals)) env.setGlobal(k, v);
+    for (const [k, v] of Object.entries(options.globals)) {
+      if (v instanceof MiniValue) {
+        env.setGlobal(k, v);
+      } else if (typeof v === 'number') {
+        env.setGlobal(k, MiniValue.number(v));
+      } else {
+        // string: detect type
+        const s = String(v);
+        if (s.startsWith('0x')) env.setGlobal(k, MiniValue.hex(s));
+        else if (!isNaN(Number(s))) env.setGlobal(k, MiniValue.number(Number(s)));
+        else env.setGlobal(k, MiniValue.string(s));
+      }
+    }
   }
   
   // Set user variables

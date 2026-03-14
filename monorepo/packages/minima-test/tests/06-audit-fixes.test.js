@@ -203,3 +203,77 @@ describe('STATE/PREVSTATE numeric comparison (BUG #5 fix)', () => {
     })).toPass();
   });
 });
+
+describe('Globals coercion (BUG #5 fix)', () => {
+  it('globals as string numbers are coerced correctly', () => {
+    const r = runScript('RETURN @COINAGE GTE 100', { globals: { '@COINAGE': '200' } });
+    if (!r.success) throw new Error('Expected TRUE, got: ' + r.error);
+  });
+
+  it('globals as JS numbers are coerced correctly', () => {
+    const r = runScript('RETURN @BLOCK GTE 1000', { globals: { '@BLOCK': 2000 } });
+    if (!r.success) throw new Error('Expected TRUE, got: ' + r.error);
+  });
+
+  it('globals as hex strings are coerced correctly', () => {
+    const r = runScript('RETURN @TOKENID EQ 0xaabb', { globals: { '@TOKENID': '0xaabb' } });
+    if (!r.success) throw new Error('Expected TRUE, got: ' + r.error);
+  });
+
+  it('globals string number beats default', () => {
+    const r = runScript('RETURN @COINAGE LT 100', { globals: { '@COINAGE': '50' } });
+    if (!r.success) throw new Error('Expected TRUE, got: ' + r.error);
+  });
+});
+
+describe('Security & Spec Fixes (BUG #5 #6 #7)', () => {
+
+  // BUG #5: EXEC instruction limit bypass
+  it('EXEC cannot bypass instruction limit', () => {
+    // Create an inner script with 600 instructions
+    let inner = '';
+    for (let i = 0; i < 600; i++) inner += `LET x${i} = ${i} `;
+    inner += 'RETURN TRUE';
+    // Outer: already has 500 instructions, then EXECs 600-instruction inner
+    let outer = '';
+    for (let i = 0; i < 500; i++) outer += `LET u${i} = ${i} `;
+    outer += `EXEC [${inner}]`;
+    const r = runScript(outer);
+    if (!r.error || !r.error.includes('MAX_INSTRUCTIONS')) {
+      throw new Error('Expected MAX_INSTRUCTIONS error, got: ' + (r.error || 'no error'));
+    }
+  });
+
+  // BUG #6: Division by zero
+  it('division by zero throws', () => {
+    expect(runScript('LET x = 10 / 0 RETURN TRUE')).toThrow('zero');
+  });
+
+  it('modulo by zero throws', () => {
+    expect(runScript('LET x = 10 % 0 RETURN TRUE')).toThrow('zero');
+  });
+
+  it('division by non-zero works', () => {
+    expect(runScript('RETURN (10 / 2) EQ 5')).toPass();
+  });
+
+  // BUG #7: STATE(n) unset returns 0
+  it('STATE(n) returns 0 for unset port', () => {
+    expect(runScript('RETURN STATE(99) EQ 0')).toPass();
+  });
+
+  it('PREVSTATE(n) returns 0 for unset port', () => {
+    expect(runScript('RETURN PREVSTATE(99) EQ 0')).toPass();
+  });
+
+  it('SAMESTATE works when both ports unset', () => {
+    expect(runScript('RETURN SAMESTATE(1, 5)')).toPass();
+  });
+
+  it('SAMESTATE fails when current state differs from prev', () => {
+    expect(runScript('RETURN SAMESTATE(1, 1)', {
+      state: { 1: '42' },
+      prevState: { 1: '0' }
+    })).toFail();
+  });
+});

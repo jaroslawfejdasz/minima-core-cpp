@@ -1,23 +1,32 @@
 {
-  "phase": 35,
-  "phase_name": "FINAL_VERIFIED — READY_FOR_GITHUB",
-  "iteration": 35,
-  "status": "COMPLETE — final audit passed, all systems green",
-  "last_verified": "2026-03-14T06:36",
+  "phase": 36,
+  "phase_name": "FINAL_AUDIT_COMPLETE — GITHUB_READY",
+  "iteration": 36,
+  "status": "COMPLETE — deep audit passed, all critical bugs fixed",
+  "last_verified": "2026-03-14T07:46",
   "final_audit": {
-    "date": "2026-03-14T06:36",
-    "tests_total": 203,
+    "date": "2026-03-14T07:46",
+    "tests_total": 215,
     "breakdown": {
-      "minima-test": 80,
+      "minima-test": 92,
       "kiss-vm-lint": 40,
       "minima-contracts": 60,
       "create-minidapp": 23
     },
     "test_failures": 0,
     "typescript_errors": 0,
-    "contracts_verified": "12/12 compile + run correctly",
-    "scaffold_cli": "3 templates verified (basic, counter, exchange)",
-    "lint_tool": "works on valid/invalid scripts",
+    "bugs_found_and_fixed": [
+      "BUG#1: String trim — tokenizer stripped whitespace from [...]",
+      "BUG#2: MULTISIG always FALSE — implemented n-of-k checking",
+      "BUG#3: Empty 0x hex literal — now throws parse error",
+      "BUG#4 (intentional): EXEC shares instruction counter — documented",
+      "BUG#5 (SECURITY): EXEC reset instruction counter — bypass of 1024 limit FIXED",
+      "BUG#6: Division by zero → Infinity — now throws runtime error",
+      "BUG#7: STATE(n) unset → throws — now returns 0 per Minima spec",
+      "BUG#8 (API): globals coercion — now accepts string/number, not just MiniValue"
+    ],
+    "contracts_verified": "12/12 compile + runtime test green",
+    "security": "EXEC cannot bypass instruction limit (verified)",
     "github_actions": "ci.yml + pr-checks.yml ready",
     "license": "MIT (root + all 4 packages)"
   },
