@@ -1,11 +1,11 @@
 {
-  "phase": 31,
-  "phase_name": "AUDIT_COMPLETE_AWAITING_GITHUB_AUTH",
-  "iteration": 31,
-  "status": "FULL AUDIT PASSED — 203 tests, 0 errors, ready for GitHub push",
-  "last_verified": "2026-03-14T05:46",
-  "final_audit": {
-    "date": "2026-03-14T05:46",
+  "phase": 32,
+  "phase_name": "POST_AUDIT_COMPLETE — AWAITING_GITHUB_AUTH",
+  "iteration": 32,
+  "status": "SECOND FULL AUDIT PASSED — 203 tests, 0 errors, 0 TS errors",
+  "last_verified": "2026-03-14T06:10",
+  "audit_v2": {
+    "date": "2026-03-14T06:10",
     "tests_total": 203,
     "breakdown": {
       "minima-test": 80,
@@ -15,19 +15,24 @@
     },
     "test_failures": 0,
     "typescript_errors": 0,
-    "clean_build_from_scratch": "rm -rf dist + npm run build = 0 errors",
-    "npm_pack_clean": true,
-    "cli_smoke_tests": {
-      "kiss-vm-lint": "clean.kiss -> 0 issues | bad.kiss -> E011 + W010",
-      "create-minidapp": "--list shows 3 templates",
-      "minima-test": "80/80 pass"
+    "bugs_fixed_this_run": [
+      "kiss-vm-lint: MULTISIG min args 2→3 (was too permissive)",
+      "kiss-vm-lint: Added W090 (no auth check - anyone-can-spend)",
+      "kiss-vm-lint: Updated 4 structural tests to include SIGNEDBY (W090 compliance)",
+      "kiss-vm-lint: README updated with W080/W090/W091 codes",
+      "kiss-vm-lint: Removed stale rules.ts.tmp temp file"
+    ],
+    "security_rules_coverage": {
+      "E002": "empty 0x hex",
+      "E060": "division by zero",
+      "W080": "infinite WHILE loop",
+      "W090": "no authorization check (NEW)",
+      "W091": "MULTISIG impossible"
     },
-    "badge_updated": "203 (was 198)",
-    "repo_urls": "all 5 package.json point to jaroslawfejdasz/-KISS-VM-interpreter",
-    "gitignore": "dist/ excluded from git, included in npm pack via 'files'",
-    "github_actions": "ci.yml (Node 18/20/22 matrix, auto-publish on release:) + pr-checks.yml (per-package)"
+    "clean_repo": "no temp files, no dist in git"
   },
   "blocker": "GitHub connector needs 'repo' scope to push",
-  "user_action_needed": "Re-authorize GitHub connector with 'repo' scope in agent settings → I push immediately",
-  "repo_target": "https://github.com/jaroslawfejdasz/-KISS-VM-interpreter"
+  "user_action_needed": "Re-authorize GitHub connector with 'repo' scope → I push immediately",
+  "repo_target": "https://github.com/jaroslawfejdasz/-KISS-VM-interpreter",
+  "push_commands_ready": true
 }

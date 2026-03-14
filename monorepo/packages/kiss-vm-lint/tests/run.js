@@ -55,7 +55,7 @@ test('E011 - no RETURN statement', () => {
   expect(analyze('LET x = 5')).toHaveCode('E011');
 });
 test('clean script with RETURN', () => {
-  expect(analyze('RETURN TRUE')).toBeClean();
+  expect(analyze('RETURN SIGNEDBY(0xaabb)')).toBeClean();
 });
 
 // =====================================================================
@@ -87,7 +87,7 @@ test('E051 - WHILE without ENDWHILE', () => {
   expect(analyze('LET i = 0 WHILE i LT 5 DO LET i = INC(i) RETURN TRUE')).toHaveCode('E051');
 });
 test('valid IF/ELSE/ENDIF', () => {
-  expect(analyze('IF TRUE THEN RETURN TRUE ELSE RETURN FALSE ENDIF')).toBeClean();
+  expect(analyze('IF @BLOCK GT 100 THEN RETURN SIGNEDBY(0xaabb) ELSE RETURN FALSE ENDIF')).toBeClean();
 });
 test('valid WHILE loop', () => {
   expect(analyze('LET i = 0 WHILE i LT 3 DO LET i = INC(i) ENDWHILE RETURN TRUE')).toNotHaveCode('E050');
@@ -199,16 +199,16 @@ test('comment-only script reports no RETURN', () => {
 test('ELSEIF chain is valid', () => {
   expect(analyze(`
     LET x = 2
-    IF x EQ 1 THEN RETURN FALSE
-    ELSEIF x EQ 2 THEN RETURN TRUE
+    IF x EQ 1 THEN RETURN SIGNEDBY(0xaaaa)
+    ELSEIF x EQ 2 THEN RETURN SIGNEDBY(0xbbbb)
     ELSE RETURN FALSE
     ENDIF
   `)).toBeClean();
 });
 test('nested IF is valid', () => {
   expect(analyze(`
-    IF TRUE THEN
-      IF TRUE THEN
+    IF @BLOCK GT 100 THEN
+      IF SIGNEDBY(0xaabb) THEN
         RETURN TRUE
       ENDIF
     ENDIF
@@ -232,3 +232,22 @@ if (failed === 0) {
   console.log('\x1b[31m\x1b[1m\n  ✗ ' + failed + ' failed, ' + passed + ' passed\x1b[0m\n');
   process.exit(1);
 }
+
+// =====================================================================
+console.log('\n\x1b[1m  W090 - No Authorization Check\x1b[0m');
+
+test('W090 - RETURN TRUE has no auth', () => {
+  expect(analyze('RETURN TRUE')).toHaveCode('W090');
+});
+test('W090 - SIGNEDBY clears warning', () => {
+  expect(analyze('RETURN SIGNEDBY(0xaabbccddaabbccddaabbccddaabbccdd)')).toNotHaveCode('W090');
+});
+test('W090 - CHECKSIG clears warning', () => {
+  expect(analyze('RETURN CHECKSIG(0xaabb, 0xccdd, 0xeeff)')).toNotHaveCode('W090');
+});
+test('W090 - MULTISIG clears warning', () => {
+  expect(analyze('RETURN MULTISIG(2, 0xaaaa, 0xbbbb, 0xcccc)')).toNotHaveCode('W090');
+});
+test('W090 - HTLC without owner sig warns', () => {
+  expect(analyze('IF SHA3(STATE(1)) EQ 0xdeadbeef THEN RETURN TRUE ENDIF RETURN FALSE')).toHaveCode('W090');
+});

@@ -61,6 +61,9 @@ kiss-vm-lint --no-info contract.kvm
 | W050 | Use `EQ` instead of `=` for equality |
 | W060 | Unknown global variable |
 | W070 | Variable used before `LET` |
+| W080 | Infinite `WHILE TRUE` loop detected |
+| W090 | No authorization check — coin can be spent by anyone |
+| W091 | `MULTISIG(n, ...)` impossible — `n` exceeds number of keys provided |
 
 ### Info (security hints)
 | Code | Description |

@@ -285,9 +285,9 @@ export const E082_WrongArgCount: Rule = (tokens) => {
 
     const [min, max] = arity;
     if (t.value === 'MULTISIG') {
-      // MULTISIG(n, key1, ...) — min 2 args: n + at least 1 key
-      if (argCount < 2) {
-        errors.push(err('E082', `MULTISIG requires at least 2 arguments: MULTISIG(n, key1, ...) — got ${argCount}`, t.pos));
+      // MULTISIG(n, key1, key2, ...) — min 3 args: n + at least 2 keys (1-of-1 multisig is pointless, use SIGNEDBY)
+      if (argCount < 3) {
+        errors.push(err('E082', `MULTISIG requires at least 3 arguments: MULTISIG(n, key1, key2, ...) — got ${argCount}`, t.pos));
       }
       continue;
     }
@@ -486,7 +486,7 @@ export const W091_MultisigImpossible: Rule = (tokens) => {
       else if (tk.type === 'COMMA' && depth === 1) argCount++;
       j++;
     }
-    if (argCount < 3) continue; // already caught by E082
+    if (argCount < 3) continue; // already caught by E082 (min 3 args required)
     // First arg must be a number literal for static analysis
     const firstArg = tokens[i + 2];
     if (firstArg?.type !== 'NUMBER') continue;
@@ -497,6 +497,21 @@ export const W091_MultisigImpossible: Rule = (tokens) => {
         `MULTISIG(${required}, ...) requires ${required} signatures but only ${keyCount} key(s) provided — can never pass`,
         t.pos));
     }
+  }
+  return issues;
+};
+
+
+// W090: No authorization check — anyone can spend this coin
+// Scripts that return TRUE without any SIGNEDBY/CHECKSIG/MULTISIG are dangerous
+export const W090_NoAuthCheck: Rule = (tokens) => {
+  const issues: LintError[] = [];
+  const authFns = new Set(['SIGNEDBY','CHECKSIG','MULTISIG']);
+  const hasAuth = tokens.some(t => t.type === 'KEYWORD' && authFns.has(t.value));
+  if (!hasAuth) {
+    issues.push(warn('W090',
+      'No authorization check found (SIGNEDBY/CHECKSIG/MULTISIG) — this coin can be spent by anyone',
+      0));
   }
   return issues;
 };
@@ -514,6 +529,7 @@ export const ALL_RULES: Rule[] = [
   E080_FunctionWithoutParens,
   E081_UnclosedParen,
   E082_WrongArgCount,
+  W090_NoAuthCheck,
   W010_UnusedVariable,
   W040_DeadCode,
   W050_AssignmentInExpr,
