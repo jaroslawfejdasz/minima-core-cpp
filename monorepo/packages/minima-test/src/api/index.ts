@@ -46,7 +46,13 @@ export interface RunScriptOptions {
   signatures?: string[];
   variables?: Record<string, MiniValue>;
   globals?: Record<string, MiniValue>;
-  mastScripts?: Record<string, string>; // hash -> script
+  mastScripts?: Record<string, string>;   // hash -> script
+  // Shorthand helpers — override specific globals without building full transaction
+  blockHeight?: number;   // sets @BLOCK
+  coinAge?: number;       // sets @COINAGE
+  coinAmount?: number;    // sets @AMOUNT
+  state?: Record<number, string | number>; // state port -> value (for STATE(n))
+  prevState?: Record<number, string | number>; // previous state (for PREVSTATE/SAMESTATE)
 }
 
 export function runScript(script: string, options: RunScriptOptions = {}): ScriptResult {
@@ -57,9 +63,30 @@ export function runScript(script: string, options: RunScriptOptions = {}): Scrip
   env.inputIndex = options.inputIndex ?? 0;
   env.signatures = options.signatures ?? tx.signatures;
 
-  // Set globals
+  // Set globals from transaction
   const globals = buildGlobals(tx, env.inputIndex);
   for (const [k, v] of Object.entries(globals)) env.setGlobal(k, v);
+
+  // Apply shorthand overrides
+  if (options.blockHeight !== undefined) env.setGlobal('@BLOCK', MiniValue.number(options.blockHeight));
+  if (options.coinAge    !== undefined) env.setGlobal('@COINAGE', MiniValue.number(options.coinAge));
+  if (options.coinAmount !== undefined) env.setGlobal('@AMOUNT', MiniValue.number(options.coinAmount));
+
+  // State variables (port -> value)
+  if (options.state) {
+    for (const [port, val] of Object.entries(options.state)) {
+      const v = typeof val === 'number' ? MiniValue.number(val) : MiniValue.hex(val);
+      env.setState(Number(port), v);
+    }
+  }
+  if (options.prevState) {
+    for (const [port, val] of Object.entries(options.prevState)) {
+      const v = typeof val === 'number' ? MiniValue.number(val) : MiniValue.hex(val);
+      env.setPrevState(Number(port), v);
+    }
+  }
+
+  // Additional globals overrides
   if (options.globals) {
     for (const [k, v] of Object.entries(options.globals)) env.setGlobal(k, v);
   }
