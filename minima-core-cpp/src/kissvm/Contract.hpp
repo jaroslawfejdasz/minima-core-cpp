@@ -37,32 +37,33 @@ public:
     static constexpr int MAX_INSTRUCTIONS = 1024;
     static constexpr int MAX_STACK_DEPTH  = 64;
 
-    /**
-     * @param script    The KISS VM script text (from coin address / witness)
-     * @param txn       The spending transaction
-     * @param witness   Witness data (signatures, script proofs)
-     * @param inputIdx  Which input coin is being validated (0-based)
-     */
     Contract(const std::string&  script,
              const Transaction&  txn,
              const Witness&      witness,
-             size_t              inputIdx);
+             size_t              inputIdx = 0);
 
-    // Execute the contract. Returns final stack top (should be TRUE).
-    // Throws ContractException on:
-    //   - instruction limit exceeded
-    //   - stack overflow
-    //   - type errors
-    //   - ASSERT failure
+    // Execute the contract. Returns final value (TRUE = valid spend).
     Value execute();
 
-    bool   isTrue()  const;
-    bool   isFalse() const { return !isTrue(); }
+    bool isTrue()  const;
+    bool isFalse() const { return !isTrue(); }
 
     // Inspection
-    const std::string& script()      const { return m_script; }
-    int                instructions()const { return m_instrCount; }
-    const std::string& traceLog()    const { return m_trace; }
+    const std::string& script()       const { return m_script; }
+    int                instructions() const { return m_instrCount; }
+    const std::string& traceLog()     const { return m_trace; }
+
+    // Accessors used by built-in functions
+    const Transaction& txn()      const;
+    const Witness&     witness()  const;
+    size_t             inputIdx() const;
+    Environment&       env();
+
+    // State variable injection (called by validator before execute())
+    void setBlockNumber(const MiniNumber& bn) { m_env.setBlock(bn); }
+    void setCoinAge    (const MiniNumber& age){ m_env.setCoinage(age); }
+
+    void tick();  // instruction counter — called by Interpreter
 
 private:
     std::string     m_script;
@@ -76,7 +77,6 @@ private:
 
     void  setupEnvironment();
     Value evalExpression(const std::string& expr);
-    void  tick();  // increment + check instruction counter
 };
 
 } // namespace minima::kissvm

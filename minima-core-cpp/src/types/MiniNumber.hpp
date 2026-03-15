@@ -144,6 +144,20 @@ public:
     int64_t     getAsLong()   const;
     int         getAsInt()    const { return (int)getAsLong(); }
     double      getAsDouble() const;
+    // Operator overloads
+    MiniNumber operator+(const MiniNumber& o) const { return add(o); }
+    MiniNumber operator-(const MiniNumber& o) const { return sub(o); }
+    MiniNumber operator*(const MiniNumber& o) const { return mult(o); }
+    MiniNumber operator/(const MiniNumber& o) const { return div(o); }
+    MiniNumber operator%(const MiniNumber& o) const { return modulo(o); }
+    bool operator==(const MiniNumber& o) const { return compareTo(o)==0; }
+    bool operator!=(const MiniNumber& o) const { return compareTo(o)!=0; }
+    bool operator< (const MiniNumber& o) const { return compareTo(o)<0;  }
+    bool operator<=(const MiniNumber& o) const { return compareTo(o)<=0; }
+    bool operator> (const MiniNumber& o) const { return compareTo(o)>0;  }
+    bool operator>=(const MiniNumber& o) const { return compareTo(o)>=0; }
+    // toBytes: serialize unscaled integer as big-endian bytes (for NUMTOHEX)
+    std::vector<uint8_t> toBytes() const;  // big-endian bytes of unscaled value
     std::string toString()    const;
 
     std::vector<uint8_t> serialise() const;

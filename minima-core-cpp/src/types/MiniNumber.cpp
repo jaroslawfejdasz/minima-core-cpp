@@ -571,4 +571,12 @@ const MiniNumber MiniNumber::BILLION    ("1000000000");
 const MiniNumber MiniNumber::TRILLION   ("1000000000000");
 const MiniNumber MiniNumber::MINUSONE   ("-1");
 
+// toBytes — serialize unscaled BigInt as big-endian bytes (for NUMTOHEX)
+std::vector<uint8_t> MiniNumber::toBytes() const {
+    auto bytes = m_unscaled.toJavaBytes();
+    // Strip leading zero sign byte for positive numbers
+    while (bytes.size() > 1 && bytes[0] == 0x00) bytes.erase(bytes.begin());
+    return bytes;
+}
+
 } // namespace minima
