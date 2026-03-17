@@ -40,6 +40,10 @@ add_library(minima-core STATIC
     src/serialization/DataStream.cpp
 
     src/validation/TxPoWValidator.cpp
+    src/mmr/MMRData.cpp
+    src/mmr/MMREntry.cpp
+    src/mmr/MMRProof.cpp
+    src/mmr/MMRSet.cpp
 )
 
 target_include_directories(minima-core PUBLIC
