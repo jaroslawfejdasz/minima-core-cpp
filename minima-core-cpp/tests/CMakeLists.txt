@@ -31,3 +31,6 @@ add_minima_test(test_token   objects/test_token.cpp)
 add_minima_test(test_mining  mining/test_mining.cpp)
 
 add_minima_test(test_difficulty chain/test_difficulty.cpp)
+
+add_minima_test(test_network network/test_network.cpp)
+add_minima_test(test_ibd objects/test_ibd.cpp)

@@ -58,6 +58,22 @@ inline std::vector<uint8_t> div256(const std::vector<uint8_t>& a, uint64_t n)
     return out;
 }
 
+// Divide 33-byte big-endian value by integer n, return bottom 32 bytes
+inline std::vector<uint8_t> div256_33(const std::vector<uint8_t>& a, uint64_t n)
+{
+    if (n == 0) return std::vector<uint8_t>(32, 0xFF);
+    // a has 33 bytes; result is 33 bytes, we return last 32
+    std::vector<uint8_t> out(33, 0);
+    uint64_t rem = 0;
+    for (int i = 0; i < 33; ++i) {
+        uint64_t cur = (rem << 8) | a[i];
+        out[i] = (uint8_t)(cur / n);
+        rem    = cur % n;
+    }
+    // Return bottom 32 bytes (drop leading overflow byte)
+    return std::vector<uint8_t>(out.begin() + 1, out.end());
+}
+
 // Multiply 32-byte big-endian by rational (num/den), result clipped to 32 bytes
 inline std::vector<uint8_t> mulRational(const std::vector<uint8_t>& a,
                                          double ratio)
@@ -211,25 +227,38 @@ private:
     }
 
     // Average of blockDifficulty over chain[endIdx..endIdx+count)
+    // Uses 33-byte accumulator to avoid overflow during summation
     static std::vector<uint8_t> getAverageDifficulty(
         const std::vector<BlockSummary>& chain,
         int startIdx, int64_t count)
     {
         if (count <= 0) return std::vector<uint8_t>(32, 0xFF);
 
-        std::vector<uint8_t> total(32, 0);
+        // Use 33-byte total to handle carry from 32-byte sum
+        std::vector<uint8_t> total(33, 0);
         int n = 0;
         for (int64_t i = 0; i < count && (startIdx + i) < (int64_t)chain.size(); ++i) {
             const auto& db = chain[startIdx + (int)i].blockDifficulty.bytes();
+            // Pad to 32 bytes
             std::vector<uint8_t> padded(32, 0);
-            size_t off = 32 > db.size() ? 32 - db.size() : 0;
+            size_t off = (db.size() < 32) ? 32 - db.size() : 0;
             for (size_t j = 0; j < db.size() && j + off < 32; ++j)
                 padded[off + j] = db[j];
-            total = bigint::add256(total, padded);
+            // Add padded (32 bytes) to total (33 bytes), aligned to LSB
+            int carry = 0;
+            for (int j = 32; j >= 0; --j) {
+                int a = total[j];
+                int b = (j > 0) ? padded[j-1] : 0; // padded[0..31] → total[1..32]
+                int s = a + b + carry;
+                total[j] = (uint8_t)(s & 0xFF);
+                carry = s >> 8;
+            }
             ++n;
         }
         if (n == 0) return std::vector<uint8_t>(32, 0xFF);
-        return bigint::div256(total, (uint64_t)n);
+        // Divide 33-byte total by n, return bottom 32 bytes
+        std::vector<uint8_t> result = bigint::div256_33(total, (uint64_t)n);
+        return result;
     }
 };
 
