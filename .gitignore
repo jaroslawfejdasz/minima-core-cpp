@@ -1,3 +1,4 @@
+# C++ build artifacts
 build/
 build-*/
 *.o
@@ -13,3 +14,19 @@ _deps/
 
 # Agent runtime files (secrets)
 .agents/
+
+# Node.js / monorepo
+monorepo/node_modules/
+monorepo/packages/*/node_modules/
+monorepo/packages/*/dist/
+monorepo/package-lock.json
+node_modules/
+*.log
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
