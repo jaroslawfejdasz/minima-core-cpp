@@ -37,7 +37,7 @@ inline std::vector<uint8_t> add256(const std::vector<uint8_t>& a,
     std::vector<uint8_t> out(32, 0);
     int carry = 0;
     for (int i = 31; i >= 0; --i) {
-        int s = (int)(a.size() > 32 ? 0 : a[i]) + (int)(b.size() > 32 ? 0 : b[i]) + carry;
+        int s = (int)(i < (int)a.size() ? a[i] : 0) + (int)(i < (int)b.size() ? b[i] : 0) + carry;
         out[i] = (uint8_t)(s & 0xFF);
         carry  = s >> 8;
     }
