@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
+    tags:
+      - 'v*'
   pull_request:
     branches: [main]
 
@@ -145,3 +147,119 @@ jobs:
           name: minima_node-armv7-linux-gnueabihf
           path: build-armv7/minima_node
           if-no-files-found: error
+
+  # ── npm publish (tylko przy tagu v*) ──────────────────────────────────
+  npm-publish:
+    name: Publish npm packages
+    runs-on: ubuntu-22.04
+    needs: [build-and-test]   # czeka aż testy przejdą
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: |
+          cd monorepo
+          npm install
+
+      - name: Build all packages
+        run: |
+          cd monorepo
+          npm run build
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Bump version in all packages
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          for pkg in monorepo/packages/*/; do
+            cd /home/runner/work/$(basename $GITHUB_REPOSITORY)/$pkg 2>/dev/null || cd $GITHUB_WORKSPACE/$pkg
+            npm version $VERSION --no-git-tag-version
+            cd $GITHUB_WORKSPACE
+          done
+
+      - name: Publish minima-test
+        run: cd monorepo/packages/minima-test && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish kiss-vm-lint
+        run: cd monorepo/packages/kiss-vm-lint && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish minima-contracts
+        run: cd monorepo/packages/minima-contracts && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @jaroslawfejdasz/create-minidapp
+        run: cd monorepo/packages/create-minidapp && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ── GitHub Release (tylko przy tagu v*) ───────────────────────────────
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-22.04
+    needs: [build-and-test, cross-aarch64, cross-armv7]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download ARM64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: minima_node-aarch64-linux-gnu
+          path: artifacts/aarch64
+
+      - name: Download ARMv7 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: minima_node-armv7-linux-gnueabihf
+          path: artifacts/armv7
+
+      - name: Rename binaries
+        run: |
+          mv artifacts/aarch64/minima_node artifacts/minima_node-aarch64-linux-gnu
+          mv artifacts/armv7/minima_node   artifacts/minima_node-armv7-linux-gnueabihf
+          chmod +x artifacts/minima_node-*
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Minima Core C++ ${{ github.ref_name }}"
+          body: |
+            ## Minima Core C++ ${{ github.ref_name }}
+
+            ### npm packages
+            ```
+            npm install minima-test
+            npm install kiss-vm-lint
+            npm install minima-contracts
+            npm install @jaroslawfejdasz/create-minidapp
+            ```
+
+            ### Pre-built binaries
+            - `minima_node-aarch64-linux-gnu` — ARM64 (Raspberry Pi 4/5)
+            - `minima_node-armv7-linux-gnueabihf` — ARMv7 (Raspberry Pi 2/3)
+
+            ### Changes
+            See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for full status.
+          files: |
+            artifacts/minima_node-aarch64-linux-gnu
+            artifacts/minima_node-armv7-linux-gnueabihf
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
