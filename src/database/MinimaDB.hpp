@@ -39,9 +39,11 @@ public:
 
     bool addBlock(const TxPoW& txpow) {
         MiniData id = txpow.computeID();
-        m_blockStore->add(id, txpow);
+        // First try to add to tree — if orphan (parent unknown), reject
         bool added = m_txPowTree->addTxPoW(txpow);
         if (!added) return false;
+        // Only store once tree accepted it
+        m_blockStore->add(id, txpow);
         auto* tip = m_txPowTree->tip();
         if (tip) m_chainState->setTip(tip->txPoWID(), tip->blockNumber());
         return true;

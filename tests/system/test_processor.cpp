@@ -122,12 +122,16 @@ TEST_SUITE("TxPoWProcessor") {
     TEST_CASE("orphan block rejected (parent unknown)") {
         MinimaDB db;
         TxPoWProcessor proc(db);
-        // No genesis — b1 has unknown parent
+        // First add genesis so tree is not empty
+        TxPoW b0 = makeBlock(0, zeroID());
+        proc.processTxPoWSync(b0);
+        CHECK(proc.blocksProcessed() == 1);
+        // Now b1 with unknown (non-genesis) parent → orphan
         MiniData unknownID(std::vector<uint8_t>(32, 0xAB));
         TxPoW b1 = makeBlock(1, unknownID);
         auto result = proc.processTxPoWSync(b1);
         CHECK(result == ProcessResult::ORPHAN);
-        CHECK(proc.blocksProcessed() == 0);
+        CHECK(proc.blocksProcessed() == 1); // still just genesis
     }
 
     TEST_CASE("to_string covers all results") {

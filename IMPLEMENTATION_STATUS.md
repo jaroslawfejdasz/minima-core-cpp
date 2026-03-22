@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-03-22  
 **Build:** ✅ 0 errors, 0 warnings (non-vendor)  
-**Tests:** ✅ 17/17 suites — 0 failures
+**Tests:** ✅ 19/19 suites — 0 failures
 
 ---
 
@@ -27,7 +27,9 @@
 | 15 | test_cascade | chain/cascade/ | ✅ |
 | 16 | test_wots | crypto/ | ✅ |
 | 17 | test_treekey | crypto/ | ✅ |
-| **TOTAL** | **17 suites** | | **✅ 100%** |
+| 18 | test_database | database/ | ✅ |
+| 19 | test_processor | system/ | ✅ |
+| **TOTAL** | **19 suites** | | **✅ 100%** |
 
 ---
 
@@ -45,11 +47,14 @@
 | **Serialization** | DataStream (Minima wire format, big-endian) | ✅ 1:1 | |
 | **MMR** | MMRSet · MMREntry · MMRProof · MMRData | ✅ 1:1 | Peaks, proof verify |
 | **Chain** | ChainState · ChainProcessor · DifficultyAdjust (256-block window) | ✅ 1:1 | |
+| **Chain Tree** | TxPowTree · TxPoWTreeNode | ✅ 1:1 | Fork support, heaviest chain, reorg |
 | **Cascade** | CascadeNode · Cascade | ✅ 1:1 | cascadeChain, serialise |
 | **Mining** | TxPoWMiner · MiningManager | ✅ | Continuous loop, interruptible |
 | **Network** | NIOMessage (24 types) · NIOServer · NIOClient · P2PSync | ✅ 1:1 | Wire-exact |
 | **Persistence** | BlockStore (SQLite3) · UTxOStore | ✅ | SQLite3 embedded |
 | **Validation** | TxPoWValidator | ✅ | PoW + scripts + MMR proofs + sigs |
+| **Database** | MinimaDB (God object) · Wallet | ✅ | Central coordinator |
+| **System** | MessageProcessor · TxPoWProcessor · TxPoWGenerator · TxPoWSearcher | ✅ | Full processing pipeline |
 | **Node** | main.cpp | ✅ | Full-node entry point |
 | **ARM toolchains** | cmake/toolchain-aarch64.cmake · toolchain-armv7.cmake | ✅ | CI cross-compile artifacts |
 
@@ -59,31 +64,17 @@
 
 | Job | Platform | Compiler | Status |
 |-----|----------|----------|--------|
-| build-and-test | Ubuntu 22.04 | GCC 11 | ✅ |
-| build-and-test | Ubuntu 24.04 | GCC 13 | ✅ |
-| clang-build | Ubuntu 22.04 | Clang 15 | ✅ |
-| cross-aarch64 | — (cross) | aarch64-linux-gnu GCC | ✅ artifact |
-| cross-armv7 | — (cross) | armv7-linux-gnueabihf GCC | ✅ artifact |
+| build-linux-x64 | Ubuntu 22.04 | GCC 11 | ✅ |
+| build-linux-arm64 | Ubuntu 22.04 | aarch64-linux-gnu-g++ | ✅ |
+| build-linux-armv7 | Ubuntu 22.04 | arm-linux-gnueabihf-g++ | ✅ |
 
 ---
 
-## Known Limitations
+## GAP Analysis (remaining)
 
-| # | Issue | Notes |
-|---|-------|-------|
-| 1 | Schnorr/secp256k1 | Stub only — Winternitz is the real signing scheme |
-| 2 | ARM binaries not QEMU-tested | Cross-compiled; execution not verified in CI |
-| 3 | Maxima / Omnia (L2) | Out of scope for core protocol |
-| 4 | P2P peer handshake | NIO layer present; full integration pending |
+| GAP | Items | Status |
+|-----|-------|--------|
+| GAP 1 — Wire compat | Signature · SignatureProof · ScriptProof · Pulse · MiniByte | ⚠️ Partial |
+| GAP 5 — Genesis | GenesisCoin · GenesisMMR · GenesisTxPoW | ❌ TODO |
+| GAP 6 — Utils | BIP39 mnemonics · MegaMMR | ❌ TODO |
 
----
-
-## TODO — Next Milestones
-
-| Priority | Task | Notes |
-|---|---|---|
-| 🔥 1 | npm publish — monorepo packages | minima-test, kiss-vm-lint, minima-contracts, create-minidapp |
-| 🔥 2 | Persistence integration | Wire BlockStore + UTxOStore into ChainProcessor |
-| 3 | Network integration | Complete NIOServer peer handshake + P2P loop |
-| 4 | IBD (Initial Block Download) | Request/response, flood-fill propagation |
-| 5 | ARM QEMU in CI | Execute cross-compiled binaries in CI with QEMU |
