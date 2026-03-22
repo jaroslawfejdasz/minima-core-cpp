@@ -108,6 +108,19 @@ namespace fn {
     Value GETOUTTOKEN (const std::vector<Value>& args, Contract& ctx);
     Value SUMINPUTS   (const std::vector<Value>& args, Contract& ctx);
     Value SUMOUTPUTS  (const std::vector<Value>& args, Contract& ctx);
+    Value STRING         (const std::vector<Value>& args, Contract& ctx);
+    Value EXISTS         (const std::vector<Value>& args, Contract& ctx);
+    Value OVERWRITE      (const std::vector<Value>& args, Contract& ctx);
+    Value SETLEN         (const std::vector<Value>& args, Contract& ctx);
+    Value SIGDIG         (const std::vector<Value>& args, Contract& ctx);
+    Value PROOF          (const std::vector<Value>& args, Contract& ctx);
+    Value REPLACEFIRST   (const std::vector<Value>& args, Contract& ctx);
+    Value SUBSTR         (const std::vector<Value>& args, Contract& ctx);
+    Value GETINADDR      (const std::vector<Value>& args, Contract& ctx);
+    Value GETINAMT       (const std::vector<Value>& args, Contract& ctx);
+    Value GETINID        (const std::vector<Value>& args, Contract& ctx);
+    Value GETINTOK       (const std::vector<Value>& args, Contract& ctx);
+    Value GETOUTKEEPSTATE(const std::vector<Value>& args, Contract& ctx);
 } // namespace fn
 
 } // namespace minima::kissvm
