@@ -1,0 +1,20 @@
+{
+  "name": "minima-developer-toolkit",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "clean": "find packages -name dist -type d | xargs rm -rf",
+    "publish:all": "npm run build && npm publish --workspaces --access public"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

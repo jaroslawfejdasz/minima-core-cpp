@@ -1,0 +1,28 @@
+{
+  "name": "create-minidapp",
+  "version": "0.1.0",
+  "description": "Scaffold a new Minima MiniDapp project",
+  "keywords": ["minima", "blockchain", "minidapp", "scaffold", "create"],
+  "author": "Minima Developer Toolkit",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jaroslawfejdasz/-KISS-VM-interpreter.git",
+    "directory": "monorepo/packages/create-minidapp"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "create-minidapp": "dist/cli.js"
+  },
+  "files": ["dist", "templates", "README.md"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": { "node": ">=18.0.0" },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
