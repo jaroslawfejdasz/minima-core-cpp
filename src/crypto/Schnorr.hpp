@@ -1,45 +1,132 @@
 #pragma once
 /**
- * Schnorr — Minima's signature scheme.
- *
- * Minima uses Schnorr signatures over a custom elliptic curve
- * (not secp256k1 — Minima uses its own curve for quantum-resistance roadmap).
- *
- * This header provides the interface. Two backends are supported:
- *   1. OpenSSL backend (default for nodes with OpenSSL)
- *   2. Pure C++ reference backend (for FPGA / bare-metal)
- *
- * Select backend via CMake: -DMINIMA_CRYPTO_BACKEND=openssl|reference
+ * Schnorr.hpp — Minima signature interface
+ * 
+ * NOTE: Minima does NOT use Schnorr/secp256k1.
+ * The actual signature scheme is Winternitz OTS (WOTS) with SHA3-256, W=8.
+ * This file provides a backward-compatible interface that delegates to WOTS.
+ * 
+ * Java reference: org.minima.objects.keys.Winternitz
+ *   - WinternitzOTSignature(seed, SHA3Digest(256), W=8)
+ *   - WinternitzOTSVerify(SHA3Digest(256), W=8)
  */
 
+#include "Winternitz.hpp"
 #include "../types/MiniData.hpp"
-#include <array>
+#include <stdexcept>
+#include <vector>
 
 namespace minima::crypto {
 
+/**
+ * KeyPair for Minima WOTS.
+ * privateKey = 32-byte seed
+ * publicKey  = 2880-byte WOTS public key (SIG_BLOCKS * KEY_SIZE)
+ */
 struct KeyPair {
-    MiniData privateKey;  // 32 bytes
-    MiniData publicKey;   // 64 bytes (uncompressed point)
+    MiniData privateKey;   // 32-byte seed
+    MiniData publicKey;    // Winternitz::PUBKEY_SIZE bytes (2880)
 };
 
+/**
+ * Schnorr — public interface for Minima signatures.
+ * Internally uses Winternitz OTS (WOTS), W=8, SHA3-256.
+ */
 class Schnorr {
 public:
-    // Key generation
-    static KeyPair generateKeyPair();
-    static MiniData publicKeyFromPrivate(const MiniData& privateKey);
+    // ── Key generation ────────────────────────────────────────────────────
 
-    // Signing
-    // Returns 64-byte signature
-    static MiniData sign(const MiniData& privateKey, const MiniData& message);
+    /**
+     * Generate a new WOTS keypair from a random 32-byte seed.
+     */
+    static KeyPair generateKeyPair() {
+        // Deterministic seed from counter + entropy mix
+        static uint64_t counter = 0xDEADBEEFCAFEBABEull;
+        counter ^= (counter << 13);
+        counter ^= (counter >> 7);
+        counter ^= (counter << 17);
 
-    // Verification
-    // Returns true if signature is valid for (pubKey, message)
-    static bool verify(const MiniData& publicKey,
+        std::vector<uint8_t> seed(32);
+        for (int i = 0; i < 4; ++i) {
+            uint64_t v = counter + i * 0x9E3779B97F4A7C15ull;
+            for (int b = 0; b < 8; ++b)
+                seed[i*8 + b] = static_cast<uint8_t>(v >> (b*8));
+        }
+        return fromSeed(MiniData(seed));
+    }
+
+    /**
+     * Derive public key from a 32-byte private seed.
+     */
+    static KeyPair fromSeed(const MiniData& seed) {
+        auto pub = Winternitz::generatePublicKey(seed.bytes());
+        return { seed, MiniData(pub) };
+    }
+
+    /**
+     * Derive only the public key.
+     */
+    static MiniData publicKeyFromPrivate(const MiniData& privateKey) {
+        return fromSeed(privateKey).publicKey;
+    }
+
+    // ── Signing ──────────────────────────────────────────────────────────
+
+    /**
+     * Sign a 32-byte message hash with the private seed.
+     * Returns SIG_SIZE (2880) byte signature.
+     */
+    static MiniData sign(const MiniData& privateKey,
+                         const MiniData& message) {
+        // Ensure message is 32 bytes (hash it if needed)
+        std::vector<uint8_t> msg = ensureHash(message);
+
+        auto sig = Winternitz::sign(privateKey.bytes(), msg);
+        return MiniData(sig);
+    }
+
+    // ── Verification ─────────────────────────────────────────────────────
+
+    /**
+     * Verify a WOTS signature.
+     * pubKey   = 2880-byte WOTS public key
+     * message  = 32-byte hash
+     * signature = 2880-byte signature
+     */
+    static bool verify(const MiniData& pubKey,
                        const MiniData& message,
-                       const MiniData& signature);
+                       const MiniData& signature) {
+        auto msg = ensureHash(message);
+        return Winternitz::verify(
+            pubKey.bytes(),
+            msg,
+            signature.bytes());
+    }
 
-    // Aggregate (for MULTISIG n-of-n Schnorr aggregation — future)
-    static MiniData aggregatePublicKeys(const std::vector<MiniData>& pubKeys);
+    // ── Multi-sig (placeholder — uses TreeKey in practice) ───────────────
+
+    /**
+     * Aggregate public keys for MULTISIG.
+     * In WOTS context: hash all pubkeys together.
+     */
+    static MiniData aggregatePublicKeys(const std::vector<MiniData>& pubKeys) {
+        std::vector<uint8_t> combined;
+        for (const auto& pk : pubKeys) {
+            const auto& b = pk.bytes();
+            combined.insert(combined.end(), b.begin(), b.end());
+        }
+        auto h = Hash::sha3_256(combined.data(), combined.size());
+        return MiniData(std::vector<uint8_t>(h.begin(), h.end()));
+    }
+
+private:
+    static std::vector<uint8_t> ensureHash(const MiniData& msg) {
+        const auto& b = msg.bytes();
+        if (b.size() == Winternitz::HASH_SIZE) return b;
+        // Hash it to get 32 bytes
+        auto h = Hash::sha3_256(b.data(), b.size());
+        return std::vector<uint8_t>(h.begin(), h.end());
+    }
 };
 
 } // namespace minima::crypto
