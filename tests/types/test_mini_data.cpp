@@ -2,7 +2,7 @@
  * MiniData unit tests
  */
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include <doctest/doctest.h>
+#include "../vendor/doctest/doctest.h"
 #include "types/MiniData.hpp"
 
 using namespace minima;

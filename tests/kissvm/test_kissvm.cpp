@@ -3,7 +3,7 @@
  * Tests the tokenizer, environment, and contract execution.
  */
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include <doctest/doctest.h>
+#include "../vendor/doctest/doctest.h"
 #include "kissvm/Contract.hpp"
 #include "kissvm/Tokenizer.hpp"
 #include "objects/Transaction.hpp"

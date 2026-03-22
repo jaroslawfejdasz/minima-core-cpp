@@ -2,7 +2,7 @@
  * MiniNumber unit tests
  */
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include <doctest/doctest.h>
+#include "../vendor/doctest/doctest.h"
 #include "types/MiniNumber.hpp"
 
 using namespace minima;
