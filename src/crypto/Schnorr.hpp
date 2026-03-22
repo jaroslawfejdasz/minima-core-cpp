@@ -40,7 +40,6 @@ public:
      * Generate a new WOTS keypair from a random 32-byte seed.
      */
     static KeyPair generateKeyPair() {
-        // Deterministic seed from counter + entropy mix
         static uint64_t counter = 0xDEADBEEFCAFEBABEull;
         counter ^= (counter << 13);
         counter ^= (counter >> 7);
@@ -78,9 +77,7 @@ public:
      */
     static MiniData sign(const MiniData& privateKey,
                          const MiniData& message) {
-        // Ensure message is 32 bytes (hash it if needed)
         std::vector<uint8_t> msg = ensureHash(message);
-
         auto sig = Winternitz::sign(privateKey.bytes(), msg);
         return MiniData(sig);
     }
@@ -89,8 +86,8 @@ public:
 
     /**
      * Verify a WOTS signature.
-     * pubKey   = 2880-byte WOTS public key
-     * message  = 32-byte hash
+     * pubKey    = 2880-byte WOTS public key
+     * message   = 32-byte hash
      * signature = 2880-byte signature
      */
     static bool verify(const MiniData& pubKey,
@@ -103,11 +100,11 @@ public:
             signature.bytes());
     }
 
-    // ── Multi-sig (placeholder — uses TreeKey in practice) ───────────────
+    // ── Multi-sig ─────────────────────────────────────────────────────────
 
     /**
      * Aggregate public keys for MULTISIG.
-     * In WOTS context: hash all pubkeys together.
+     * In WOTS context: hash all pubkeys together → 32-byte aggregate key.
      */
     static MiniData aggregatePublicKeys(const std::vector<MiniData>& pubKeys) {
         std::vector<uint8_t> combined;
@@ -115,17 +112,16 @@ public:
             const auto& b = pk.bytes();
             combined.insert(combined.end(), b.begin(), b.end());
         }
-        auto h = Hash::sha3_256(combined.data(), combined.size());
-        return MiniData(std::vector<uint8_t>(h.begin(), h.end()));
+        // Hash::sha3_256 returns MiniData — use .bytes() to get vector
+        return Hash::sha3_256(combined.data(), combined.size());
     }
 
 private:
     static std::vector<uint8_t> ensureHash(const MiniData& msg) {
         const auto& b = msg.bytes();
-        if (b.size() == Winternitz::HASH_SIZE) return b;
-        // Hash it to get 32 bytes
-        auto h = Hash::sha3_256(b.data(), b.size());
-        return std::vector<uint8_t>(h.begin(), h.end());
+        if (static_cast<int>(b.size()) == Winternitz::HASH_SIZE) return b;
+        // Hash to 32 bytes
+        return Hash::sha3_256(b.data(), b.size()).bytes();
     }
 };
 

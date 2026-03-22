@@ -9,15 +9,16 @@
 #include <cstring>
 
 using namespace minima::crypto;
+using minima::MiniData;
 
-// ── Helper ──────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 static std::vector<uint8_t> makeBytes(uint8_t fill, size_t len = 32) {
     return std::vector<uint8_t>(len, fill);
 }
 
+// Returns 32-byte SHA3-256 hash of the input
 static std::vector<uint8_t> hashOf(const std::vector<uint8_t>& data) {
-    auto h = Hash::sha3_256(data.data(), data.size());
-    return std::vector<uint8_t>(h.begin(), h.end());
+    return Hash::sha3_256(data.data(), data.size()).bytes();
 }
 
 // ── Winternitz constants ─────────────────────────────────────────────────────
@@ -47,9 +48,8 @@ TEST_CASE("WOTS: different seeds produce different public keys") {
     CHECK(pub1 != pub2);
 }
 
-TEST_CASE("WOTS: public key is not all zeros or all same byte") {
+TEST_CASE("WOTS: public key is not all zeros") {
     auto pub = Winternitz::generatePublicKey(makeBytes(0x42));
-    // Check some diversity — not all the same byte
     bool allSame = true;
     for (size_t i = 1; i < pub.size(); ++i)
         if (pub[i] != pub[0]) { allSame = false; break; }
@@ -101,7 +101,7 @@ TEST_CASE("WOTS: verify fails with tampered signature") {
     CHECK_FALSE(Winternitz::verify(pub, msg, sig));
 }
 
-TEST_CASE("WOTS: sign is deterministic (same seed+msg → same sig)") {
+TEST_CASE("WOTS: sign is deterministic") {
     auto seed = makeBytes(0x99);
     auto msg  = hashOf(makeBytes(0x66));
     auto sig1 = Winternitz::sign(seed, msg);
@@ -129,11 +129,10 @@ TEST_CASE("WOTS: recover() returns correct public key") {
 
 // ── Schnorr interface (delegates to WOTS) ─────────────────────────────────────
 TEST_CASE("Schnorr: fromSeed produces correct key pair") {
-    std::vector<uint8_t> seedBytes = makeBytes(0xF0);
-    MiniData seed(seedBytes);
+    MiniData seed(makeBytes(0xF0));
     auto kp = Schnorr::fromSeed(seed);
 
-    CHECK(kp.privateKey.bytes() == seedBytes);
+    CHECK(kp.privateKey.bytes() == makeBytes(0xF0));
     CHECK(kp.publicKey.bytes().size() ==
           static_cast<size_t>(Winternitz::PUBKEY_SIZE));
 }
@@ -183,7 +182,6 @@ TEST_CASE("Schnorr: verify fails for wrong public key") {
 
 TEST_CASE("Schnorr: non-32-byte message is hashed before verify") {
     MiniData seed(makeBytes(0x77));
-    // Pass a 64-byte message — it will be hashed to 32 bytes
     MiniData bigMsg(makeBytes(0x88, 64));
     auto kp  = Schnorr::fromSeed(seed);
     auto sig = Schnorr::sign(seed, bigMsg);
