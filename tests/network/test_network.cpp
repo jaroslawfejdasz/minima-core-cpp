@@ -34,11 +34,12 @@ TEST_CASE("NIOMessage: encode/decode roundtrip TXPOW") {
 }
 
 TEST_CASE("NIOMessage: all message types have valid type byte") {
+    // encode() returns [1-byte type][payload] — length prefix added by sendFramed
     for (uint8_t t = 0; t <= 23; t++) {
         NIOMsg msg{static_cast<MsgType>(t), {}};
         auto enc = msg.encode();
         REQUIRE_FALSE(enc.empty());
-        CHECK(enc[4] == t);  // bytes 0-3 = length prefix, byte 4 = type
+        CHECK(enc[0] == t);  // byte 0 = type (length prefix NOT included in encode())
     }
 }
 
