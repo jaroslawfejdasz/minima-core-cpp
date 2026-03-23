@@ -50,9 +50,9 @@
 | 1 | `MegaMMR` — pełny fast-sync IBD (szkielet jest, brak pełnej logiki) | MEDIUM |
 | 2 | `Cascade` integracja z `MinimaDB.addBlock()` — auto-trim starych bloków | LOW |
 | 3 | `P2P Greeting` — wysyłanie do seed node przy starcie | MEDIUM |
-| 4 | `PROOF` funkcja KISS VM — MMR proof weryfikacja w skrypcie | HIGH |
+| 4 | `PROOF` funkcja KISS VM — MMR proof weryfikacja w skrypcie | ✅ DONE |
 | 5 | npm publish — monorepo packages (minima-test, kiss-vm-lint) | MEDIUM |
-| 6 | Pełna walidacja WOTS podpisów w TxPoWValidator | HIGH |
+| 6 | Pełna walidacja WOTS podpisów w TxPoWValidator | ✅ DONE |
 
 ---
 
