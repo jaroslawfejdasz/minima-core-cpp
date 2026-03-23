@@ -30,9 +30,9 @@ MiniData SignatureProof::getRootPublicKey() const {
 // Java: MMRData.CreateMMRDataLeafNode(getCoin(), getCoin().getAmount())
 //   = hash(coin.serialise()), value = coin.amount()
 MMRData CoinProof::getMMRData() const {
-    auto coinBytes = mCoin.serialise();
+    auto coinBytes = m_coin.serialise();
     MiniData leafHash = crypto::Hash::sha3_256(coinBytes.data(), coinBytes.size());
-    return MMRData(leafHash, mCoin.amount(), false);
+    return MMRData(leafHash, m_coin.amount(), false);
 }
 
 // ── ScriptProof::address() ────────────────────────────────────────────────

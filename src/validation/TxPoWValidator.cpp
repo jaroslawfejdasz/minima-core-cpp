@@ -106,10 +106,12 @@ ValidationResult TxPoWValidator::checkScripts(const TxPoW& txpow) const {
 
         const std::string& script = scriptOpt->str();
 
-        // Verify script hash matches coin address
-        MiniData scriptHash = crypto::Hash::sha3_256(
-            std::vector<uint8_t>(script.begin(), script.end())
-        );
+        // Verify script hash matches coin address.
+        // Java: MMRData.CreateMMRDataLeafNode(MiniString(script), ZERO).getData()
+        //   = SHA3(MiniString.writeDataStream()) = SHA3(2-byte-len + utf8-bytes)
+        MiniString ms(script);
+        auto msBytes = ms.serialise();
+        MiniData scriptHash = crypto::Hash::sha3_256(msBytes.data(), msBytes.size());
         if (!(scriptHash == utxoCoin->address().hash())) {
             std::ostringstream oss;
             oss << "Script check: script hash mismatch for input " << i;

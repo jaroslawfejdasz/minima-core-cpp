@@ -47,9 +47,10 @@ struct MockUTxO {
 static Coin makeCoin(const std::string& coinIDHex,
                      const std::string& script,
                      const std::string& amountStr = "10") {
-    // Address = SHA3(script bytes)
-    std::vector<uint8_t> scriptBytes(script.begin(), script.end());
-    MiniData addrHash = crypto::Hash::sha3_256(scriptBytes);
+    // Address = SHA3(MiniString.serialise()) — wire-exact (Java: CreateMMRDataLeafNode)
+    MiniString ms(script);
+    auto msBytes = ms.serialise();
+    MiniData addrHash = crypto::Hash::sha3_256(msBytes.data(), msBytes.size());
     Address addr(addrHash);
 
     MiniData coinID = MiniData::fromHex(coinIDHex);
@@ -64,9 +65,10 @@ static Coin makeCoin(const std::string& coinIDHex,
 
 static Coin makeOutputCoin(const std::string& script,
                            const std::string& amountStr = "10") {
-    // Output coin has no coinID — assigned by network after acceptance
-    std::vector<uint8_t> scriptBytes(script.begin(), script.end());
-    MiniData addrHash = crypto::Hash::sha3_256(scriptBytes);
+    // Address = SHA3(MiniString.serialise()) — wire-exact
+    MiniString ms(script);
+    auto msBytes = ms.serialise();
+    MiniData addrHash = crypto::Hash::sha3_256(msBytes.data(), msBytes.size());
     Address addr(addrHash);
     Coin c;
     c.setAddress(addr).setAmount(MiniNumber(amountStr));
@@ -136,11 +138,12 @@ TEST_SUITE("TxPoWValidator - Scripts") {
         txn.addOutput(output);
 
         Witness witness;
-        std::vector<uint8_t> scriptBytes(script.begin(), script.end());
-        MiniData addrHash = crypto::Hash::sha3_256(scriptBytes);
+        MiniString __ms(script);
+        auto __msBytes = __ms.serialise();
+        MiniData addrHash = crypto::Hash::sha3_256(__msBytes.data(), __msBytes.size());
         ScriptProof sp;
-        sp.script  = MiniString(script);
-        // address computed automatically from sp.script
+        sp.mScript  = MiniString(script);
+        // address computed automatically from sp.mScript
         witness.addScriptProof(sp);
 
         TxPoWValidator v(utxo.lookup());
@@ -162,11 +165,12 @@ TEST_SUITE("TxPoWValidator - Scripts") {
         txn.addInput(coin);
 
         Witness witness;
-        std::vector<uint8_t> scriptBytes(script.begin(), script.end());
-        MiniData addrHash = crypto::Hash::sha3_256(scriptBytes);
+        MiniString __ms(script);
+        auto __msBytes = __ms.serialise();
+        MiniData addrHash = crypto::Hash::sha3_256(__msBytes.data(), __msBytes.size());
         ScriptProof sp;
-        sp.script  = MiniString(script);
-        // address computed automatically from sp.script
+        sp.mScript  = MiniString(script);
+        // address computed automatically from sp.mScript
         witness.addScriptProof(sp);
 
         TxPoWValidator v(utxo.lookup());
@@ -209,8 +213,8 @@ TEST_SUITE("TxPoWValidator - Scripts") {
 
         Witness witness;
         ScriptProof sp;
-        sp.script  = MiniString(script);
-        // address computed automatically from sp.script
+        sp.mScript  = MiniString(script);
+        // address computed automatically from sp.mScript
         witness.addScriptProof(sp);
 
         TxPoWValidator v(utxo.lookup());
@@ -239,16 +243,16 @@ TEST_SUITE("TxPoWValidator - Scripts") {
         std::vector<uint8_t> fakeBytes(fakeScript.begin(), fakeScript.end());
         MiniData fakeHash = crypto::Hash::sha3_256(fakeBytes);
         ScriptProof sp;
-        sp.script  = MiniString(fakeScript);
-        // address computed automatically from sp.script
+        sp.mScript  = MiniString(fakeScript);
+        // address computed automatically from sp.mScript
         witness.addScriptProof(sp);
 
         // Also add real address → fake script mapping
         std::vector<uint8_t> realBytes(realScript.begin(), realScript.end());
         MiniData realHash = crypto::Hash::sha3_256(realBytes);
         ScriptProof sp2;
-        sp2.script  = MiniString(fakeScript);  // fake content for real address
-        // address is computed from sp2.script (will compute hash of fakeScript)
+        sp2.mScript  = MiniString(fakeScript);  // fake content for real address
+        // address is computed from sp2.mScript (will compute hash of fakeScript)
         witness.addScriptProof(sp2);
 
         TxPoWValidator v(utxo.lookup());
@@ -276,11 +280,12 @@ TEST_SUITE("TxPoWValidator - Scripts") {
         txn.addOutput(output);
 
         Witness witness;
-        std::vector<uint8_t> scriptBytes(script.begin(), script.end());
-        MiniData addrHash = crypto::Hash::sha3_256(scriptBytes);
+        MiniString __ms(script);
+        auto __msBytes = __ms.serialise();
+        MiniData addrHash = crypto::Hash::sha3_256(__msBytes.data(), __msBytes.size());
         ScriptProof sp;
-        sp.script  = MiniString(script);
-        // address computed automatically from sp.script
+        sp.mScript  = MiniString(script);
+        // address computed automatically from sp.mScript
         witness.addScriptProof(sp);
 
         TxPoWValidator v(utxo.lookup());
@@ -441,12 +446,13 @@ TEST_SUITE("TxPoWValidator - Full Pipeline") {
         txn.addInput(inp);
         txn.addOutput(out);
 
-        std::vector<uint8_t> scriptBytes(script.begin(), script.end());
-        MiniData addrHash = crypto::Hash::sha3_256(scriptBytes);
+        MiniString __ms(script);
+        auto __msBytes = __ms.serialise();
+        MiniData addrHash = crypto::Hash::sha3_256(__msBytes.data(), __msBytes.size());
         Witness witness;
         ScriptProof sp;
-        sp.script  = MiniString(script);
-        // address computed automatically from sp.script
+        sp.mScript  = MiniString(script);
+        // address computed automatically from sp.mScript
         witness.addScriptProof(sp);
 
         TxPoWValidator v(utxo.lookup());
@@ -474,8 +480,8 @@ TEST_SUITE("TxPoWValidator - Full Pipeline") {
         std::vector<uint8_t> sb(script.begin(), script.end());
         MiniData ah = crypto::Hash::sha3_256(sb);
         ScriptProof sp;
-        sp.script  = MiniString(script);
-        // address computed automatically from sp.script
+        sp.mScript  = MiniString(script);
+        // address computed automatically from sp.mScript
         witness.addScriptProof(sp);
 
         TxPoWValidator v(utxo.lookup());
@@ -511,8 +517,8 @@ TEST_SUITE("TxPoWValidator - Full Pipeline") {
             std::vector<uint8_t> sb(script.begin(), script.end());
             MiniData ah = crypto::Hash::sha3_256(sb);
             ScriptProof sp;
-            sp.script  = MiniString(script);
-        // address computed automatically from sp.script
+            sp.mScript  = MiniString(script);
+        // address computed automatically from sp.mScript
             witness.addScriptProof(sp);
         };
         addScript(s1);

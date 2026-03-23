@@ -34,7 +34,7 @@ static SignatureProof makeSignatureProof(uint8_t keyByte) {
     // leaf = hash(pubKey.serialise())
     auto pkBytes = pubKey.serialise();
     MiniData leafHash = crypto::Hash::sha3_256(pkBytes.data(), pkBytes.size());
-    MMRData  leafData(leafHash, MiniNumber::ZERO);
+    MMRData  leafData(leafHash, MiniNumber(int64_t(0)), false);
     MMREntry entry = mmr.addLeaf(leafData);
 
     MMRProof proof = mmr.getProof(entry.getEntry());
@@ -53,7 +53,7 @@ static ScriptProof makeScriptProof(const std::string& script) {
     MiniData leafHash = crypto::Hash::sha3_256(scriptBytes.data(), scriptBytes.size());
 
     MMRSet mmr;
-    MMRData leafData(leafHash, MiniNumber::ZERO);
+    MMRData leafData(leafHash, MiniNumber(int64_t(0)), false);
     MMREntry entry = mmr.addLeaf(leafData);
     MMRProof proof = mmr.getProof(entry.getEntry());
 
@@ -128,19 +128,19 @@ TEST_SUITE("Witness Wire Format") {
         MMRSet mmr;
         auto coinBytes = coin.serialise();
         MiniData leafHash = crypto::Hash::sha3_256(coinBytes.data(), coinBytes.size());
-        MMRData leafData(leafHash, coin.amount());
+        MMRData leafData(leafHash, coin.amount(), false);
         MMREntry entry = mmr.addLeaf(leafData);
         MMRProof proof = mmr.getProof(entry.getEntry());
 
         CoinProof cp;
-        cp.mCoin  = coin;
-        cp.mProof = proof;
+        cp.coin()  = coin;
+        cp.proof() = proof;
 
         auto bytes = cp.serialise();
         size_t off = 0;
         CoinProof cp2 = CoinProof::deserialise(bytes.data(), off);
-        CHECK(cp2.mCoin.coinID() == fill32(0xCC));
-        CHECK(cp2.mCoin.amount() == MiniNumber(int64_t(999)));
+        CHECK(cp2.coin().coinID() == fill32(0xCC));
+        CHECK(cp2.coin().amount() == MiniNumber(int64_t(999)));
         CHECK(off == bytes.size());
     }
 
@@ -196,9 +196,9 @@ TEST_SUITE("Witness Wire Format") {
         MMRSet mmr;
         auto cb = coin.serialise();
         MiniData lh = crypto::Hash::sha3_256(cb.data(), cb.size());
-        MMREntry e = mmr.addLeaf(MMRData(lh, coin.amount()));
+        MMREntry e = mmr.addLeaf(MMRData(lh, coin.amount(), false));
 
-        CoinProof cp; cp.mCoin = coin; cp.mProof = mmr.getProof(e.getEntry());
+        CoinProof cp; cp.coin() = coin; cp.proof() = mmr.getProof(e.getEntry());
 
         Witness w;
         w.addCoinProof(cp);
@@ -207,7 +207,7 @@ TEST_SUITE("Witness Wire Format") {
         size_t off = 0;
         Witness w2 = Witness::deserialise(bytes.data(), off);
         REQUIRE(w2.coinProofs().size() == 1);
-        CHECK(w2.coinProofs()[0].mCoin.coinID() == fill32(0xDD));
+        CHECK(w2.coinProofs()[0].coin().coinID() == fill32(0xDD));
         CHECK(off == bytes.size());
     }
 
@@ -276,9 +276,9 @@ TEST_SUITE("Witness Wire Format") {
             MMRSet mmr;
             auto cb = coin.serialise();
             MiniData lh = crypto::Hash::sha3_256(cb.data(), cb.size());
-            MMREntry e = mmr.addLeaf(MMRData(lh, coin.amount()));
+            MMREntry e = mmr.addLeaf(MMRData(lh, coin.amount(), false));
 
-            CoinProof cp; cp.mCoin = coin; cp.mProof = mmr.getProof(e.getEntry());
+            CoinProof cp; cp.coin() = coin; cp.proof() = mmr.getProof(e.getEntry());
             w.addCoinProof(cp);
         }
 
@@ -296,8 +296,8 @@ TEST_SUITE("Witness Wire Format") {
         CHECK(w2.scriptProofs().size() == 2);
         CHECK(w2.signatures()[0].mSignatures[0].mPublicKey == fill32(0x10));
         CHECK(w2.signatures()[1].mSignatures[0].mPublicKey == fill32(0x11));
-        CHECK(w2.coinProofs()[0].mCoin.coinID() == fill32(0x20));
-        CHECK(w2.coinProofs()[1].mCoin.coinID() == fill32(0x21));
+        CHECK(w2.coinProofs()[0].coin().coinID() == fill32(0x20));
+        CHECK(w2.coinProofs()[1].coin().coinID() == fill32(0x21));
         CHECK(w2.scriptProofs()[0].mScript.str() == "RETURN TRUE");
         CHECK(w2.scriptProofs()[1].mScript.str() == "LET x = 1 RETURN x EQ 1");
         CHECK(off == bytes.size());
@@ -313,9 +313,9 @@ TEST_SUITE("Witness Wire Format") {
         MMRSet mmr;
         auto cb = coin.serialise();
         MiniData lh = crypto::Hash::sha3_256(cb.data(), cb.size());
-        MMREntry e = mmr.addLeaf(MMRData(lh, coin.amount()));
+        MMREntry e = mmr.addLeaf(MMRData(lh, coin.amount(), false));
 
-        CoinProof cp; cp.mCoin = coin; cp.mProof = mmr.getProof(e.getEntry());
+        CoinProof cp; cp.coin() = coin; cp.proof() = mmr.getProof(e.getEntry());
         MMRData d1 = cp.getMMRData();
         MMRData d2 = cp.getMMRData();
         CHECK(d1.getData() == d2.getData());
