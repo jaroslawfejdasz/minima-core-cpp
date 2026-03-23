@@ -210,6 +210,10 @@ private:
         while (received < size) {
             ssize_t n = ::recv(fd_, buf + received, size - received, 0);
             if (n < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ETIMEDOUT) {
+                    // Receive timeout — connection may still be alive
+                    throw std::runtime_error("NIOClient::recv timeout");
+                }
                 connected_ = false;
                 throw std::runtime_error("NIOClient::recv failed: " +
                                          std::string(strerror(errno)));

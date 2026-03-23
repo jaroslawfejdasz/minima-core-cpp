@@ -143,7 +143,12 @@ inline NIOMsg buildTxPoW(const TxPoW& txpow) {
 }
 
 // PING / PONG (single)
-inline NIOMsg buildPing()      { return NIOMsg(MsgType::SINGLE_PING, {}); }
+inline NIOMsg buildPing() {
+    // Java NIOMessage expects MiniData.ReadFromStream(dis) as SINGLE_PING payload.
+    // MiniData.ZERO_TXPOWID = 4-byte length (=1) + 0x00
+    std::vector<uint8_t> payload = {0x00, 0x00, 0x00, 0x01, 0x00};
+    return NIOMsg(MsgType::SINGLE_PING, payload);
+}
 inline NIOMsg buildPong()      { return NIOMsg(MsgType::SINGLE_PONG, {}); }
 
 // PULSE: keep-alive with current block number

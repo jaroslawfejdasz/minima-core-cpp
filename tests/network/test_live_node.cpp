@@ -274,6 +274,7 @@ TEST_SUITE("LiveNode_NIO") {
                 std::cout << "[NIO] Received: " << msgTypeName(pongResp.type)
                           << " (" << pongResp.payload.size() << " bytes)\n";
                 if (pongResp.type == MsgType::SINGLE_PONG ||
+                    pongResp.type == MsgType::GREETING ||  // Java sends Greeting as PONG response
                     pongResp.type == MsgType::PING ||
                     pongResp.type == MsgType::PULSE) {
                     gotPong = true;
