@@ -56,8 +56,8 @@ export const ruleReturnPresent: LintRule = {
       return [{
         rule: 'return-present',
         severity: 'warning',
-        message: 'Script has no RETURN statement — result depends on top of stack.',
-        suggestion: 'Add RETURN to make intent explicit.',
+        message: 'Script has no RETURN statement — script will not produce a result.',
+        suggestion: 'Add RETURN TRUE or RETURN FALSE to explicitly return a value.',
       }];
     }
     return [];
@@ -119,30 +119,40 @@ export const ruleBalancedWhile: LintRule = {
         rule: 'balanced-while',
         severity: 'error',
         message: `${depth} WHILE block(s) without ENDWHILE.`,
+        suggestion: 'Add ENDWHILE for each WHILE loop.',
       }];
     }
     return [];
   },
 };
 
-// ── Rule: No address verification ─────────────────────────────────────────────
+// ── Rule: No address verification (only for non-trivial scripts) ──────────────
 export const ruleAddressCheck: LintRule = {
   id: 'address-check',
   description: 'Contracts that move funds should verify output addresses',
   severity: 'warning',
   check(tokens) {
-    const hasOutputOp = tokens.some(t =>
-      ['VERIFYOUT', 'GETOUTADDR', 'GETOUTAMT'].includes(t.toUpperCase())
+    // Skip trivial scripts (< 3 tokens) — they're likely test/template scripts
+    if (tokens.length < 3) return [];
+
+    const up = tokens.map(t => t.toUpperCase());
+    const hasOutputOp = up.some(t =>
+      ['VERIFYOUT', 'GETOUTADDR', 'GETOUTAMT', 'SUMINPUTS', 'SUMOUTPUTS'].includes(t)
     );
-    const hasSignedBy = tokens.some(t =>
-      ['SIGNEDBY', 'CHECKSIG', 'MULTISIG'].includes(t.toUpperCase())
+    const hasSignedBy = up.some(t =>
+      ['SIGNEDBY', 'CHECKSIG', 'MULTISIG'].includes(t)
     );
-    if (!hasOutputOp && !hasSignedBy) {
+    const hasStateCheck = up.some(t => ['STATE', 'PREVSTATE', 'SAMESTATE'].includes(t));
+    const hasTimeLock = up.some(t =>
+      ['@BLOCK', '@COINAGE', '@BLOCKMILLI'].includes(t)
+    );
+    // If script has only a time lock without output check — warn
+    if (!hasOutputOp && !hasSignedBy && !hasStateCheck && !hasTimeLock) {
       return [{
         rule: 'address-check',
         severity: 'warning',
         message: 'No output verification or signature check found. Funds may be accessible to anyone.',
-        suggestion: 'Add SIGNEDBY or VERIFYOUT to restrict access.',
+        suggestion: 'Add SIGNEDBY, CHECKSIG, MULTISIG, or VERIFYOUT to restrict access.',
       }];
     }
     return [];
@@ -167,42 +177,73 @@ export const ruleNoRSA: LintRule = {
   },
 };
 
-// ── Rule: Magic variables without null check ──────────────────────────────────
-export const ruleMagicVars: LintRule = {
-  id: 'magic-vars',
-  description: '@-variables should be used carefully',
-  severity: 'info',
+// ── Rule: Multiple top-level RETURNs (dead code indicator) ───────────────────
+// Detecting unreachable code precisely requires a full parser.
+// We conservatively flag only the clear case: multiple RETURN at top-level depth.
+export const ruleNoDeadCode: LintRule = {
+  id: 'no-dead-code',
+  description: 'Multiple top-level RETURN statements — earlier ones are unreachable',
+  severity: 'warning',
   check(tokens) {
-    const magicVars = tokens.filter(t => t.startsWith('@'));
+    let depth = 0;
+    let topLevelReturns = 0;
+    for (const t of tokens) {
+      const up = t.toUpperCase();
+      if (up === 'IF' || up === 'WHILE') depth++;
+      if (up === 'ENDIF' || up === 'ENDWHILE') depth--;
+      if (up === 'RETURN' && depth === 0) {
+        topLevelReturns++;
+        if (topLevelReturns > 1) {
+          return [{
+            rule: 'no-dead-code',
+            severity: 'warning',
+            message: `Multiple top-level RETURN statements found (${topLevelReturns}). Earlier ones may be unreachable.`,
+            suggestion: 'Use IF/ELSE/ENDIF to conditionally return, or remove redundant RETURN.',
+          }];
+        }
+      }
+    }
+    return [];
+  },
+};
+
+// ── Rule: LET variable shadowing global ──────────────────────────────────────
+export const ruleNoShadowGlobals: LintRule = {
+  id: 'no-shadow-globals',
+  description: 'LET variables should not shadow KISS VM global @-variables',
+  severity: 'warning',
+  check(tokens) {
     const issues: LintIssue[] = [];
-    for (const v of magicVars) {
-      if (v.toUpperCase() === '@BLOCK' || v.toUpperCase() === '@COINAGE') {
-        // OK — commonly used
+    for (let i = 0; i < tokens.length - 1; i++) {
+      if (tokens[i].toUpperCase() === 'LET') {
+        const varName = tokens[i + 1];
+        if (varName && varName.startsWith('@')) {
+          issues.push({
+            rule: 'no-shadow-globals',
+            severity: 'warning',
+            message: `LET ${varName} — cannot reassign KISS VM global variable.`,
+            suggestion: 'Use a different variable name that does not start with @.',
+          });
+        }
       }
     }
     return issues;
   },
 };
 
-// ── Rule: Unreachable code after RETURN ───────────────────────────────────────
-export const ruleNoDeadCode: LintRule = {
-  id: 'no-dead-code',
-  description: 'Code after RETURN at top level is unreachable',
-  severity: 'warning',
+// ── Rule: ASSERT without explanation ──────────────────────────────────────────
+export const ruleAssertInfo: LintRule = {
+  id: 'assert-usage',
+  description: 'ASSERT immediately fails the script — use it intentionally',
+  severity: 'info',
   check(tokens) {
-    let depth = 0;
-    for (let i = 0; i < tokens.length; i++) {
-      const t = tokens[i].toUpperCase();
-      if (t === 'IF' || t === 'WHILE') depth++;
-      if (t === 'ENDIF' || t === 'ENDWHILE') depth--;
-      if (t === 'RETURN' && depth === 0 && i < tokens.length - 1) {
-        return [{
-          rule: 'no-dead-code',
-          severity: 'warning',
-          message: `RETURN at token ${i} — ${tokens.length - i - 1} token(s) after it are unreachable.`,
-          suggestion: 'Remove unreachable code after top-level RETURN.',
-        }];
-      }
+    const assertCount = tokens.filter(t => t.toUpperCase() === 'ASSERT').length;
+    if (assertCount > 3) {
+      return [{
+        rule: 'assert-usage',
+        severity: 'info',
+        message: `Script contains ${assertCount} ASSERT statements. Consider consolidating checks.`,
+      }];
     }
     return [];
   },
@@ -215,6 +256,7 @@ export const ALL_RULES: LintRule[] = [
   ruleBalancedWhile,
   ruleAddressCheck,
   ruleNoRSA,
-  ruleMagicVars,
   ruleNoDeadCode,
+  ruleNoShadowGlobals,
+  ruleAssertInfo,
 ];

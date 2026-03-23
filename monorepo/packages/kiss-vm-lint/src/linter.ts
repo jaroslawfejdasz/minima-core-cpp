@@ -43,8 +43,12 @@ export class KissVMLinter {
   }
 
   private tokenize(script: string): string[] {
-    return script
-      .replace(/\/\*[\s\S]*?\*\//g, ' ')  // strip comments
+    // Strip /* ... */ comments
+    const stripped = script.replace(/\/\*[\s\S]*?\*\//g, ' ');
+    // Insert spaces around parens and commas so SIGNEDBY(x) → SIGNEDBY ( x )
+    const spaced = stripped
+      .replace(/([()\[\],])/g, ' $1 ');
+    return spaced
       .split(/\s+/)
       .filter(t => t.length > 0);
   }
