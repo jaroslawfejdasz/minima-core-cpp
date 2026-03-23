@@ -50,6 +50,35 @@ MMRData MMRProof::calculateProof() const {
     return result;
 }
 
+
+MMRData MMRProof::calculateProof(const MMRData& startData) const {
+    // Temporarily use startData as leaf, then calculate
+    MMRData current = startData;
+    uint64_t entry  = m_entry;
+    for (const auto& sibling : m_proof) {
+        if (entry % 2 == 0)
+            current = MMRData::combine(current, sibling);
+        else
+            current = MMRData::combine(sibling, current);
+        entry /= 2;
+    }
+    MMRData localPeak = current;
+
+    // Bag peaks (same as calculateProof())
+    MMRData result;
+    bool hasResult = false;
+    for (const auto& lp : m_leftPeaks) {
+        if (!hasResult) { result = lp; hasResult = true; }
+        else result = MMRData::combine(result, lp);
+    }
+    if (!hasResult) { result = localPeak; hasResult = true; }
+    else result = MMRData::combine(result, localPeak);
+    for (const auto& rp : m_rightPeaks) {
+        result = MMRData::combine(result, rp);
+    }
+    return result;
+}
+
 bool MMRProof::verifyProof(const MMRData& root) const {
     MMRData computed = calculateProof();
     return computed.getData() == root.getData();

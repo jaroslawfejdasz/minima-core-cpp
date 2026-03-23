@@ -152,7 +152,11 @@ Value SIGNEDBY(const std::vector<Value>& args, Contract& ctx) {
     requireArgs(args, 1, "SIGNEDBY");
     const MiniData& pubkey = hexArg(args, 0, "SIGNEDBY");
     for (const auto& sig : ctx.witness().signatures()) {
-        if (sig.rootPublicKey == pubkey || sig.publicKey == pubkey) return Value::boolean(true);
+        // sig is Signature (list of SignatureProof)
+        if (sig.getRootPublicKey() == pubkey) return Value::boolean(true);
+        for (const auto& sp : sig.mSignatures) {
+            if (sp.mPublicKey == pubkey) return Value::boolean(true);
+        }
     }
     return Value::boolean(false);
 }
@@ -174,9 +178,11 @@ Value CHECKSIG(const std::vector<Value>& args, Contract& ctx) {
     }
 #else
     // Without OpenSSL: witness-presence fallback (testing only)
-    for (const auto& sp : ctx.witness().signatures()) {
-        if (sp.publicKey == pubkey && sp.signature == sig)
-            return Value::boolean(true);
+    for (const auto& sig_obj : ctx.witness().signatures()) {
+        for (const auto& sp : sig_obj.mSignatures) {
+            if (sp.mPublicKey == pubkey && sp.mSignature == sig)
+                return Value::boolean(true);
+        }
     }
     return Value::boolean(false);
 #endif
@@ -194,7 +200,12 @@ Value MULTISIG(const std::vector<Value>& args, Contract& ctx) {
         if (args[i].type() != ValueType::HEX) continue;
         const MiniData& pubkey = args[i].asHex();
         for (const auto& sig : ctx.witness().signatures()) {
-            if (sig.rootPublicKey == pubkey || sig.publicKey == pubkey) { found++; break; }
+            if (sig.getRootPublicKey() == pubkey) { found++; break; }
+            bool foundInSig = false;
+            for (const auto& sp : sig.mSignatures) {
+                if (sp.mPublicKey == pubkey) { foundInSig = true; break; }
+            }
+            if (foundInSig) { found++; break; }
         }
     }
     return Value::boolean(found >= required);

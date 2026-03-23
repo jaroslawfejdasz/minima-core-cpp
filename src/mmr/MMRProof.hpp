@@ -37,8 +37,13 @@ public:
     /** Compute the local peak hash from leaf + sibling chain. */
     MMRData calculateLocalPeak() const;
 
-    /** Compute the full MMR root (bag all peaks). */
+    /** Compute the full MMR root (bag all peaks). Uses stored m_data as leaf. */
     MMRData calculateProof() const;
+
+    /** Compute root using provided startData as the leaf (Java: calculateProof(MMRData)).
+     *  Java ref: SignatureProof.getRootPublicKey(), ScriptProof.calculateAddress()
+     */
+    MMRData calculateProof(const MMRData& startData) const;
 
     /** Verify this proof against a known MMR root hash. */
     bool verifyProof(const MMRData& root) const;

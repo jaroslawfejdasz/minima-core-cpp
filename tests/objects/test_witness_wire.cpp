@@ -1,12 +1,18 @@
 /**
- * test_witness_wire.cpp — Wire format correctness for Witness, Signature, ScriptProof
+ * test_witness_wire.cpp — Wire format correctness for Witness, Signature, SignatureProof,
+ *                          CoinProof, ScriptProof.
+ *
+ * Java reference: Witness.java, Signature.java, SignatureProof.java,
+ *                 CoinProof.java, ScriptProof.java
  */
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "../vendor/doctest/doctest.h"
 #include "../../src/objects/Witness.hpp"
+#include "../../src/objects/Address.hpp"
 #include "../../src/types/MiniData.hpp"
 #include "../../src/types/MiniString.hpp"
 #include "../../src/types/MiniNumber.hpp"
+#include "../../src/mmr/MMRSet.hpp"
 #include "../../src/crypto/Hash.hpp"
 
 using namespace minima;
@@ -18,47 +24,152 @@ static MiniData fill2880(uint8_t v) {
     return MiniData(std::vector<uint8_t>(2880, v));
 }
 
+// Build a valid SignatureProof with a real 1-leaf MMRProof
+static SignatureProof makeSignatureProof(uint8_t keyByte) {
+    MiniData pubKey = fill32(keyByte);
+    MiniData sig    = fill2880(keyByte + 0x10);
+
+    // Build 1-leaf MMR so we have a real proof
+    MMRSet mmr;
+    // leaf = hash(pubKey.serialise())
+    auto pkBytes = pubKey.serialise();
+    MiniData leafHash = crypto::Hash::sha3_256(pkBytes.data(), pkBytes.size());
+    MMRData  leafData(leafHash, MiniNumber::ZERO);
+    MMREntry entry = mmr.addLeaf(leafData);
+
+    MMRProof proof = mmr.getProof(entry.getEntry());
+
+    SignatureProof sp;
+    sp.mPublicKey = pubKey;
+    sp.mSignature = sig;
+    sp.mProof     = proof;
+    return sp;
+}
+
+// Build a valid ScriptProof with a real 1-leaf MMRProof
+static ScriptProof makeScriptProof(const std::string& script) {
+    MiniString ms(script);
+    auto scriptBytes = ms.serialise();
+    MiniData leafHash = crypto::Hash::sha3_256(scriptBytes.data(), scriptBytes.size());
+
+    MMRSet mmr;
+    MMRData leafData(leafHash, MiniNumber::ZERO);
+    MMREntry entry = mmr.addLeaf(leafData);
+    MMRProof proof = mmr.getProof(entry.getEntry());
+
+    ScriptProof sp;
+    sp.mScript = ms;
+    sp.mProof  = proof;
+    return sp;
+}
+
 TEST_SUITE("Witness Wire Format") {
 
     TEST_CASE("Empty Witness roundtrip") {
         Witness w;
         CHECK(w.isEmpty());
         auto bytes = w.serialise();
-        REQUIRE(bytes.size() >= 2);
-        CHECK(bytes[0] == 0x00);
+        REQUIRE(bytes.size() >= 3); // 3x MiniNumber(0) = 3x {scale=0, len=1, byte=0}
         size_t off = 0;
         Witness w2 = Witness::deserialise(bytes.data(), off);
         CHECK(w2.isEmpty());
+        CHECK(off == bytes.size());
     }
 
-    TEST_CASE("Signature roundtrip") {
+    TEST_CASE("SignatureProof roundtrip") {
+        SignatureProof sp = makeSignatureProof(0xAA);
+        auto bytes = sp.serialise();
+        size_t off = 0;
+        SignatureProof sp2 = SignatureProof::deserialise(bytes.data(), off);
+        CHECK(sp2.mPublicKey == sp.mPublicKey);
+        CHECK(sp2.mSignature == sp.mSignature);
+        CHECK(off == bytes.size());
+    }
+
+    TEST_CASE("SignatureProof::getRootPublicKey() is deterministic") {
+        SignatureProof sp = makeSignatureProof(0x55);
+        MiniData root1 = sp.getRootPublicKey();
+        MiniData root2 = sp.getRootPublicKey();
+        CHECK(root1 == root2);
+        CHECK(root1.bytes().size() == 32);
+    }
+
+    TEST_CASE("Signature roundtrip (list of SignatureProof)") {
         Signature sig;
-        sig.rootPublicKey = fill32(0xAA);
-        sig.leafIndex     = MiniNumber(int64_t(42));
-        sig.publicKey     = fill2880(0xBB);
-        sig.signature     = fill2880(0xCC);
-        sig.proof.nodes   = { fill32(0x01), fill32(0x02), fill32(0x03) };
+        sig.addSignatureProof(makeSignatureProof(0x01));
+        sig.addSignatureProof(makeSignatureProof(0x02));
 
         auto bytes = sig.serialise();
         size_t off = 0;
         Signature sig2 = Signature::deserialise(bytes.data(), off);
 
-        CHECK(sig2.rootPublicKey == sig.rootPublicKey);
-        CHECK(sig2.leafIndex == sig.leafIndex);
-        CHECK(sig2.publicKey == sig.publicKey);
-        CHECK(sig2.signature == sig.signature);
-        CHECK(sig2.proof.size() == 3);
-        CHECK(sig2.proof.nodes[0] == fill32(0x01));
-        CHECK(sig2.proof.nodes[2] == fill32(0x03));
+        REQUIRE(sig2.mSignatures.size() == 2);
+        CHECK(sig2.mSignatures[0].mPublicKey == fill32(0x01));
+        CHECK(sig2.mSignatures[1].mPublicKey == fill32(0x02));
         CHECK(off == bytes.size());
+    }
+
+    TEST_CASE("Signature::getRootPublicKey() equals first proof root") {
+        Signature sig;
+        SignatureProof sp = makeSignatureProof(0x77);
+        sig.addSignatureProof(sp);
+        MiniData root = sig.getRootPublicKey();
+        MiniData expected = sp.getRootPublicKey();
+        CHECK(root == expected);
+    }
+
+    TEST_CASE("CoinProof roundtrip") {
+        Coin coin;
+        coin.setCoinID(fill32(0xCC));
+        coin.setAmount(MiniNumber(int64_t(999)));
+        Address addr(fill32(0xAB));
+        coin.setAddress(addr);
+
+        MMRSet mmr;
+        auto coinBytes = coin.serialise();
+        MiniData leafHash = crypto::Hash::sha3_256(coinBytes.data(), coinBytes.size());
+        MMRData leafData(leafHash, coin.amount());
+        MMREntry entry = mmr.addLeaf(leafData);
+        MMRProof proof = mmr.getProof(entry.getEntry());
+
+        CoinProof cp;
+        cp.mCoin  = coin;
+        cp.mProof = proof;
+
+        auto bytes = cp.serialise();
+        size_t off = 0;
+        CoinProof cp2 = CoinProof::deserialise(bytes.data(), off);
+        CHECK(cp2.mCoin.coinID() == fill32(0xCC));
+        CHECK(cp2.mCoin.amount() == MiniNumber(int64_t(999)));
+        CHECK(off == bytes.size());
+    }
+
+    TEST_CASE("ScriptProof roundtrip") {
+        ScriptProof sp = makeScriptProof("RETURN TRUE");
+        auto bytes = sp.serialise();
+        size_t off = 0;
+        ScriptProof sp2 = ScriptProof::deserialise(bytes.data(), off);
+        CHECK(sp2.mScript.str() == "RETURN TRUE");
+        CHECK(off == bytes.size());
+    }
+
+    TEST_CASE("ScriptProof::address() is deterministic and non-empty") {
+        ScriptProof sp = makeScriptProof("LET x = 5 RETURN x GT 3");
+        MiniData addr1 = sp.address();
+        MiniData addr2 = sp.address();
+        CHECK(addr1 == addr2);
+        CHECK(addr1.bytes().size() == 32);
+    }
+
+    TEST_CASE("ScriptProof::address() differs for different scripts") {
+        ScriptProof sp1 = makeScriptProof("RETURN TRUE");
+        ScriptProof sp2 = makeScriptProof("RETURN FALSE");
+        CHECK(sp1.address() != sp2.address());
     }
 
     TEST_CASE("Witness with one Signature roundtrip") {
         Signature sig;
-        sig.rootPublicKey = fill32(0x11);
-        sig.leafIndex     = MiniNumber(int64_t(7));
-        sig.publicKey     = fill2880(0x22);
-        sig.signature     = fill2880(0x33);
+        sig.addSignatureProof(makeSignatureProof(0x11));
 
         Witness w;
         w.addSignature(sig);
@@ -68,47 +179,55 @@ TEST_SUITE("Witness Wire Format") {
         Witness w2 = Witness::deserialise(bytes.data(), off);
 
         REQUIRE(w2.signatures().size() == 1);
-        CHECK(w2.signatures()[0].rootPublicKey == fill32(0x11));
-        CHECK(w2.signatures()[0].leafIndex == MiniNumber(int64_t(7)));
-        CHECK(w2.signatures()[0].publicKey.bytes().size() == 2880);
+        REQUIRE(w2.signatures()[0].mSignatures.size() == 1);
+        CHECK(w2.signatures()[0].mSignatures[0].mPublicKey == fill32(0x11));
+        CHECK(w2.coinProofs().empty());
         CHECK(w2.scriptProofs().empty());
+        CHECK(off == bytes.size());
+    }
+
+    TEST_CASE("Witness with CoinProof roundtrip") {
+        Coin coin;
+        coin.setCoinID(fill32(0xDD));
+        coin.setAmount(MiniNumber(int64_t(500)));
+        Address addr(fill32(0xEE));
+        coin.setAddress(addr);
+
+        MMRSet mmr;
+        auto cb = coin.serialise();
+        MiniData lh = crypto::Hash::sha3_256(cb.data(), cb.size());
+        MMREntry e = mmr.addLeaf(MMRData(lh, coin.amount()));
+
+        CoinProof cp; cp.mCoin = coin; cp.mProof = mmr.getProof(e.getEntry());
+
+        Witness w;
+        w.addCoinProof(cp);
+
+        auto bytes = w.serialise();
+        size_t off = 0;
+        Witness w2 = Witness::deserialise(bytes.data(), off);
+        REQUIRE(w2.coinProofs().size() == 1);
+        CHECK(w2.coinProofs()[0].mCoin.coinID() == fill32(0xDD));
+        CHECK(off == bytes.size());
     }
 
     TEST_CASE("Witness with ScriptProof roundtrip") {
-        ScriptProof sp;
-        sp.script = MiniString("RETURN TRUE");
-
+        ScriptProof sp = makeScriptProof("RETURN TRUE");
         Witness w;
         w.addScriptProof(sp);
 
         auto bytes = w.serialise();
         size_t off = 0;
         Witness w2 = Witness::deserialise(bytes.data(), off);
-
         REQUIRE(w2.scriptProofs().size() == 1);
-        CHECK(w2.scriptProofs()[0].script.str() == "RETURN TRUE");
+        CHECK(w2.scriptProofs()[0].mScript.str() == "RETURN TRUE");
         CHECK(w2.signatures().empty());
+        CHECK(off == bytes.size());
     }
 
-    TEST_CASE("ScriptProof::address() computes SHA3 of script") {
-        ScriptProof sp;
-        sp.script = MiniString("RETURN TRUE");
-
-        MiniData addr = sp.address();
-        CHECK(addr.bytes().size() == 32);
-
-        const std::string s = "RETURN TRUE";
-        MiniData expected = crypto::Hash::sha3_256(
-            reinterpret_cast<const uint8_t*>(s.data()), s.size());
-        CHECK(addr == expected);
-    }
-
-    TEST_CASE("scriptForAddress lookup") {
-        const std::string script1 = "RETURN TRUE";
-        const std::string script2 = "LET x = 5 RETURN x GT 3";
-
-        ScriptProof sp1; sp1.script = MiniString(script1);
-        ScriptProof sp2; sp2.script = MiniString(script2);
+    TEST_CASE("Witness::scriptForAddress lookup") {
+        ScriptProof sp1 = makeScriptProof("RETURN TRUE");
+        ScriptProof sp2 = makeScriptProof("LET x = 5 RETURN x GT 3");
 
         Witness w;
         w.addScriptProof(sp1);
@@ -117,84 +236,89 @@ TEST_SUITE("Witness Wire Format") {
         MiniData addr2 = sp2.address();
         auto found = w.scriptForAddress(addr2);
         REQUIRE(found.has_value());
-        CHECK(found->str() == script2);
+        CHECK(found->str() == "LET x = 5 RETURN x GT 3");
 
-        MiniData unknown = fill32(0xFF);
-        CHECK(!w.scriptForAddress(unknown).has_value());
+        CHECK(!w.scriptForAddress(fill32(0xFF)).has_value());
     }
 
-    TEST_CASE("Witness num_sigs byte is correct") {
-        Witness w;
-        for (int i = 0; i < 3; ++i) {
-            Signature sig;
-            sig.rootPublicKey = fill32(static_cast<uint8_t>(i));
-            sig.leafIndex     = MiniNumber(int64_t(i));
-            sig.publicKey     = fill2880(static_cast<uint8_t>(i + 10));
-            sig.signature     = fill2880(static_cast<uint8_t>(i + 20));
-            w.addSignature(sig);
-        }
-        ScriptProof sp; sp.script = MiniString("RETURN TRUE");
-        w.addScriptProof(sp);
+    TEST_CASE("Witness::isSignedBy") {
+        SignatureProof sp = makeSignatureProof(0x42);
+        MiniData root = sp.getRootPublicKey();
 
-        auto bytes = w.serialise();
-        CHECK(bytes[0] == 0x03);
-
-        size_t off = 0;
-        Witness w2 = Witness::deserialise(bytes.data(), off);
-        CHECK(w2.signatures().size() == 3);
-        CHECK(w2.scriptProofs().size() == 1);
-    }
-
-    TEST_CASE("MerklePath roundtrip") {
-        MerklePath mp;
-        mp.nodes = { fill32(0xDE), fill32(0xAD), fill32(0xBE), fill32(0xEF) };
-
-        auto bytes = mp.serialise();
-        CHECK(bytes[0] == 4);
-
-        size_t off = 0;
-        MerklePath mp2 = MerklePath::deserialise(bytes.data(), off);
-        REQUIRE(mp2.nodes.size() == 4);
-        CHECK(mp2.nodes[0] == fill32(0xDE));
-        CHECK(mp2.nodes[3] == fill32(0xEF));
-        CHECK(off == bytes.size());
-    }
-
-    TEST_CASE("Signature::isValid()") {
         Signature sig;
-        CHECK(!sig.isValid());
-        sig.rootPublicKey = fill32(0x01);
-        sig.publicKey     = fill2880(0x02);
-        sig.signature     = fill2880(0x03);
-        CHECK(sig.isValid());
+        sig.addSignatureProof(sp);
+
+        Witness w;
+        w.addSignature(sig);
+
+        CHECK(w.isSignedBy(root));
+        CHECK(!w.isSignedBy(fill32(0xFF)));
     }
 
-    TEST_CASE("Full Witness roundtrip: 2 sigs + 2 scripts") {
+    TEST_CASE("Full Witness: 2 sigs + 2 coinproofs + 2 scripts") {
         Witness w;
+
+        // 2 Signatures (each with 1 SignatureProof)
         for (int i = 0; i < 2; ++i) {
             Signature sig;
-            sig.rootPublicKey = fill32(static_cast<uint8_t>(0x10 + i));
-            sig.leafIndex     = MiniNumber(int64_t(i * 100));
-            sig.publicKey     = fill2880(static_cast<uint8_t>(0x20 + i));
-            sig.signature     = fill2880(static_cast<uint8_t>(0x30 + i));
-            sig.proof.nodes   = { fill32(static_cast<uint8_t>(0x40 + i)) };
+            sig.addSignatureProof(makeSignatureProof(static_cast<uint8_t>(0x10 + i)));
             w.addSignature(sig);
         }
-        ScriptProof sp1; sp1.script = MiniString("RETURN TRUE");
-        ScriptProof sp2; sp2.script = MiniString("LET x = 1 RETURN x EQ 1");
-        w.addScriptProof(sp1);
-        w.addScriptProof(sp2);
 
+        // 2 CoinProofs
+        for (int i = 0; i < 2; ++i) {
+            Coin coin;
+            coin.setCoinID(fill32(static_cast<uint8_t>(0x20 + i)));
+            coin.setAmount(MiniNumber(int64_t(100 + i)));
+            Address addr(fill32(static_cast<uint8_t>(0x30 + i)));
+            coin.setAddress(addr);
+
+            MMRSet mmr;
+            auto cb = coin.serialise();
+            MiniData lh = crypto::Hash::sha3_256(cb.data(), cb.size());
+            MMREntry e = mmr.addLeaf(MMRData(lh, coin.amount()));
+
+            CoinProof cp; cp.mCoin = coin; cp.mProof = mmr.getProof(e.getEntry());
+            w.addCoinProof(cp);
+        }
+
+        // 2 ScriptProofs
+        w.addScriptProof(makeScriptProof("RETURN TRUE"));
+        w.addScriptProof(makeScriptProof("LET x = 1 RETURN x EQ 1"));
+
+        // Roundtrip
         auto bytes = w.serialise();
         size_t off = 0;
         Witness w2 = Witness::deserialise(bytes.data(), off);
 
         CHECK(w2.signatures().size() == 2);
+        CHECK(w2.coinProofs().size() == 2);
         CHECK(w2.scriptProofs().size() == 2);
-        CHECK(w2.signatures()[0].rootPublicKey == fill32(0x10));
-        CHECK(w2.signatures()[1].leafIndex == MiniNumber(int64_t(100)));
-        CHECK(w2.scriptProofs()[0].script.str() == "RETURN TRUE");
-        CHECK(w2.scriptProofs()[1].script.str() == "LET x = 1 RETURN x EQ 1");
+        CHECK(w2.signatures()[0].mSignatures[0].mPublicKey == fill32(0x10));
+        CHECK(w2.signatures()[1].mSignatures[0].mPublicKey == fill32(0x11));
+        CHECK(w2.coinProofs()[0].mCoin.coinID() == fill32(0x20));
+        CHECK(w2.coinProofs()[1].mCoin.coinID() == fill32(0x21));
+        CHECK(w2.scriptProofs()[0].mScript.str() == "RETURN TRUE");
+        CHECK(w2.scriptProofs()[1].mScript.str() == "LET x = 1 RETURN x EQ 1");
         CHECK(off == bytes.size());
+    }
+
+    TEST_CASE("CoinProof::getMMRData() is deterministic") {
+        Coin coin;
+        coin.setCoinID(fill32(0x99));
+        coin.setAmount(MiniNumber(int64_t(42)));
+        Address addr(fill32(0xAA));
+        coin.setAddress(addr);
+
+        MMRSet mmr;
+        auto cb = coin.serialise();
+        MiniData lh = crypto::Hash::sha3_256(cb.data(), cb.size());
+        MMREntry e = mmr.addLeaf(MMRData(lh, coin.amount()));
+
+        CoinProof cp; cp.mCoin = coin; cp.mProof = mmr.getProof(e.getEntry());
+        MMRData d1 = cp.getMMRData();
+        MMRData d2 = cp.getMMRData();
+        CHECK(d1.getData() == d2.getData());
+        CHECK(!d1.getData().empty());
     }
 }

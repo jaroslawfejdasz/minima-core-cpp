@@ -4,87 +4,57 @@
  *
  * Wire-exact port of org.minima.objects.Witness (Java Minima Core).
  *
- * Java structure:
+ * Java structure (Witness.java):
  *   Witness {
- *       ArrayList<Signature>   mSignatures;    // list of Signature objects
- *       ArrayList<ScriptProof> mScriptProofs;  // list of ScriptProof objects
+ *       ArrayList<Signature>   mSignatureProofs;  // WOTS tree signatures
+ *       ArrayList<CoinProof>   mCoinProofs;        // MMR proofs for input coins
+ *       ArrayList<ScriptProof> mScriptProofs;      // Script + MMR address proof
  *   }
  *
- *   Signature {
- *       MiniData   mRootPublicKey;  // TreeKey root pubkey (32 bytes)
- *       int        mLeafIndex;      // which WOTS leaf was used
- *       MiniData   mPublicKey;      // WOTS leaf public key (2880 bytes)
- *       MiniData   mSignature;      // WOTS signature (2880 bytes)
- *       MerklePath mProof;          // Merkle auth path (list of 32-byte nodes)
- *   }
- *
- *   ScriptProof {
- *       MiniString mScript;         // plaintext KISS VM script
- *       MMRProof   mMMRProof;       // MMR proof that script→address is in coin MMR
- *   }
- *
- * Wire format (serialise):
- *   [1 byte]  num_signatures
+ * Wire format (MiniNumber size prefix for each list):
+ *   MiniNumber(num_signatures)
  *   for each Signature:
- *       rootPublicKey.serialise()
- *       leafIndex as MiniNumber.serialise()
- *       publicKey.serialise()
- *       signature.serialise()
- *       [1 byte] merkle_path_length
- *       for each path node: [32 bytes]
- *   [1 byte]  num_script_proofs
+ *       MiniNumber(num_sig_proofs)
+ *       for each SignatureProof:
+ *           publicKey (MiniData)    ← WOTS leaf pubkey
+ *           signature (MiniData)    ← WOTS signature
+ *           proof (MMRProof)        ← Merkle path to TreeKey root
+ *   MiniNumber(num_coin_proofs)
+ *   for each CoinProof:
+ *       coin (Coin)
+ *       proof (MMRProof)
+ *   MiniNumber(num_script_proofs)
  *   for each ScriptProof:
- *       script.serialise()
- *       mmrProof.serialise()
+ *       script (MiniString)
+ *       proof (MMRProof)
  */
 
 #include "../types/MiniData.hpp"
 #include "../types/MiniNumber.hpp"
 #include "../types/MiniString.hpp"
 #include "../mmr/MMRProof.hpp"
+#include "../mmr/MMRData.hpp"
+#include "Coin.hpp"
+#include "CoinProof.hpp"
 #include <optional>
 #include <vector>
 
 namespace minima {
 
-// ── Merkle authentication path for WOTS / TreeKey ─────────────────────────
-struct MerklePath {
-    std::vector<MiniData> nodes;   // sibling hashes (32 bytes each)
+// ── SignatureProof ─────────────────────────────────────────────────────────
+// Java: org.minima.objects.keys.SignatureProof
+// One WOTS leaf signature with its Merkle proof path to the TreeKey root.
+struct SignatureProof {
+    MiniData mPublicKey;    // WOTS leaf public key
+    MiniData mSignature;    // WOTS signature
+    MMRProof mProof;        // Merkle proof → TreeKey root
 
-    bool   empty() const { return nodes.empty(); }
-    size_t size()  const { return nodes.size(); }
-
-    std::vector<uint8_t> serialise() const {
-        std::vector<uint8_t> out;
-        out.push_back(static_cast<uint8_t>(nodes.size()));
-        for (const auto& n : nodes) {
-            auto nb = n.serialise();
-            out.insert(out.end(), nb.begin(), nb.end());
-        }
-        return out;
-    }
-
-    static MerklePath deserialise(const uint8_t* data, size_t& off) {
-        MerklePath mp;
-        uint8_t cnt = data[off++];
-        mp.nodes.reserve(cnt);
-        for (uint8_t i = 0; i < cnt; ++i)
-            mp.nodes.push_back(MiniData::deserialise(data, off));
-        return mp;
-    }
-};
-
-// ── Signature — one WOTS TreeKey signature with Merkle auth path ───────────
-// Wire-exact port of org.minima.objects.Signature
-struct Signature {
-    MiniData   rootPublicKey;   // TreeKey Merkle root (32 bytes)
-    MiniNumber leafIndex;       // which leaf (used as MiniNumber for wire format)
-    MiniData   publicKey;       // WOTS leaf pub key (2880 bytes)
-    MiniData   signature;       // WOTS signature (2880 bytes)
-    MerklePath proof;           // Merkle auth path
+    // Compute the root public key: proof.calculateProof(MMRData(publicKey)).getData()
+    // Java: getRootPublicKey() = mProof.calculateProof(MMRData.CreateMMRDataLeafNode(mPublicKey, ZERO))
+    MiniData getRootPublicKey() const;
 
     bool isValid() const {
-        return !rootPublicKey.empty() && !publicKey.empty() && !signature.empty();
+        return !mPublicKey.empty() && !mSignature.empty();
     }
 
     std::vector<uint8_t> serialise() const {
@@ -92,33 +62,74 @@ struct Signature {
         auto append = [&](const std::vector<uint8_t>& v) {
             out.insert(out.end(), v.begin(), v.end());
         };
-        append(rootPublicKey.serialise());
-        append(leafIndex.serialise());
-        append(publicKey.serialise());
-        append(signature.serialise());
-        append(proof.serialise());
+        append(mPublicKey.serialise());
+        append(mSignature.serialise());
+        append(mProof.serialise());
+        return out;
+    }
+
+    static SignatureProof deserialise(const uint8_t* data, size_t& off) {
+        SignatureProof sp;
+        sp.mPublicKey = MiniData::deserialise(data, off);
+        sp.mSignature = MiniData::deserialise(data, off);
+        sp.mProof     = MMRProof::deserialise(data, off);
+        return sp;
+    }
+};
+
+// ── Signature ─────────────────────────────────────────────────────────────
+// Java: org.minima.objects.keys.Signature
+// A list of SignatureProof objects (usually 1 for single-key signing).
+// rootPublicKey is derived from the first proof's calculateProof().
+struct Signature {
+    std::vector<SignatureProof> mSignatures;
+
+    void addSignatureProof(const SignatureProof& sp) {
+        mSignatures.push_back(sp);
+    }
+
+    // Root public key = first proof's root (all should have same root)
+    MiniData getRootPublicKey() const {
+        if (mSignatures.empty()) return MiniData();
+        return mSignatures[0].getRootPublicKey();
+    }
+
+    bool empty() const { return mSignatures.empty(); }
+
+    std::vector<uint8_t> serialise() const {
+        std::vector<uint8_t> out;
+        auto append = [&](const std::vector<uint8_t>& v) {
+            out.insert(out.end(), v.begin(), v.end());
+        };
+        // MiniNumber(count)
+        append(MiniNumber(int64_t(mSignatures.size())).serialise());
+        for (const auto& sp : mSignatures)
+            append(sp.serialise());
         return out;
     }
 
     static Signature deserialise(const uint8_t* data, size_t& off) {
         Signature s;
-        s.rootPublicKey = MiniData::deserialise(data, off);
-        s.leafIndex     = MiniNumber::deserialise(data, off);
-        s.publicKey     = MiniData::deserialise(data, off);
-        s.signature     = MiniData::deserialise(data, off);
-        s.proof         = MerklePath::deserialise(data, off);
+        int64_t cnt = MiniNumber::deserialise(data, off).getAsLong();
+        s.mSignatures.reserve(static_cast<size_t>(cnt));
+        for (int64_t i = 0; i < cnt; ++i)
+            s.mSignatures.push_back(SignatureProof::deserialise(data, off));
         return s;
     }
 };
 
-// ── ScriptProof — script + MMR proof that script→address is valid ──────────
-// Wire-exact port of org.minima.objects.ScriptProof
-struct ScriptProof {
-    MiniString script;    // plaintext KISS VM script
-    MMRProof   mmrProof;  // MMR proof for the address derived from script
+// CoinProof is defined in CoinProof.hpp
+// (Coin + MMRProof, wire-exact port of org.minima.objects.CoinProof)
 
-    // Helper — compute the address this script resolves to: SHA3(script_bytes)
-    // (matches Java: new MiniData(Crypto.getInstance().hashData(script.getBytes())))
+// ── ScriptProof ────────────────────────────────────────────────────────────
+// Java: org.minima.objects.ScriptProof
+// A KISS VM script plus its MMR proof that script→address is valid.
+struct ScriptProof {
+    MiniString mScript;    // plaintext KISS VM script
+    MMRProof   mProof;     // MMR proof (root = address of script)
+
+    // Compute the address this script resolves to (= MMR root derived from proof)
+    // Java: mProof.calculateProof(MMRData.CreateMMRDataLeafNode(mScript, ZERO)).getData()
     MiniData address() const;
 
     std::vector<uint8_t> serialise() const {
@@ -126,15 +137,15 @@ struct ScriptProof {
         auto append = [&](const std::vector<uint8_t>& v) {
             out.insert(out.end(), v.begin(), v.end());
         };
-        append(script.serialise());
-        append(mmrProof.serialise());
+        append(mScript.serialise());
+        append(mProof.serialise());
         return out;
     }
 
     static ScriptProof deserialise(const uint8_t* data, size_t& off) {
         ScriptProof sp;
-        sp.script   = MiniString::deserialise(data, off);
-        sp.mmrProof = MMRProof::deserialise(data, off);
+        sp.mScript = MiniString::deserialise(data, off);
+        sp.mProof  = MMRProof::deserialise(data, off);
         return sp;
     }
 };
@@ -145,25 +156,32 @@ public:
     Witness() = default;
 
     // ── Mutation ──────────────────────────────────────────────────────────
-    void addSignature (const Signature&   sig) { m_signatures.push_back(sig); }
+    void addSignature  (const Signature&   sig) { m_signatures.push_back(sig); }
+    void addCoinProof  (const CoinProof&   cp)  { m_coinProofs.push_back(cp); }
     void addScriptProof(const ScriptProof& sp)  { m_scripts.push_back(sp); }
 
     // ── Query ─────────────────────────────────────────────────────────────
     const std::vector<Signature>&   signatures()  const { return m_signatures; }
+    const std::vector<CoinProof>&   coinProofs()  const { return m_coinProofs; }
     const std::vector<ScriptProof>& scriptProofs() const { return m_scripts; }
 
-    // Convenience: look up script for a given address (SHA3 comparison)
+    // Lookup script for a given address
     std::optional<MiniString> scriptForAddress(const MiniData& address) const;
+
+    // Check if signed by given root public key
+    bool isSignedBy(const MiniData& rootPubKey) const;
 
     // ── Wire format ───────────────────────────────────────────────────────
     std::vector<uint8_t> serialise() const;
     static Witness       deserialise(const uint8_t* data, size_t& offset);
 
-    // Compactness check (used by validator)
-    bool isEmpty() const { return m_signatures.empty() && m_scripts.empty(); }
+    bool isEmpty() const {
+        return m_signatures.empty() && m_coinProofs.empty() && m_scripts.empty();
+    }
 
 private:
     std::vector<Signature>   m_signatures;
+    std::vector<CoinProof>   m_coinProofs;
     std::vector<ScriptProof> m_scripts;
 };
 
