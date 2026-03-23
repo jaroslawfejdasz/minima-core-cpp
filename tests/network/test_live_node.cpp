@@ -329,9 +329,19 @@ TEST_SUITE("LiveNode_NIO") {
                 bool parsedOk = false;
                 size_t txOffset = 0;
                 const auto& rawPayload = msg.payload;
+                // Dump payload to file
+                {
+                    FILE* fp = fopen("/tmp/txpow_payload.bin", "wb");
+                    if (fp) { fwrite(rawPayload.data(), 1, rawPayload.size(), fp); fclose(fp); }
+                    printf("[HEX] Payload %zu bytes: ", rawPayload.size());
+                    for (size_t bi = 0; bi < std::min(rawPayload.size(), size_t(80)); ++bi)
+                        printf("%02X ", rawPayload[bi]);
+                    printf("\n");
+                    fflush(stdout);
+                }
                 try {
                     // Step by step parse with bounds check
-                    std::cout << "[DBG] Parsing TxHeader...\n";
+                    std::cout << "[DBG] Parsing TxHeader...\n"; fflush(stdout);
                     TxHeader hdr = TxHeader::deserialise(rawPayload.data(), txOffset);
                     std::cout << "[DBG] TxHeader OK, offset=" << txOffset 
                               << " block=" << hdr.blockNumber.getAsLong() << "\n";
