@@ -27,6 +27,7 @@
 #include <optional>
 #include <vector>
 #include <string>
+#include <unordered_map>
 
 using minima::mempool::Mempool;
 
@@ -179,6 +180,7 @@ public:
      */
     void rebuildMMR() {
         m_mmrSet = std::make_unique<MMRSet>();
+        m_coinToMMREntry.clear();
         auto chain = m_txPowTree->canonicalChain();
         for (const auto* node : chain) {
             applyBlockToMMR(node->txpow());
@@ -189,6 +191,7 @@ public:
         m_txPowTree->clear();
         m_chainState = std::make_unique<chain::ChainState>();
         m_mmrSet     = std::make_unique<MMRSet>();
+        m_coinToMMREntry.clear();
     }
 
     // ── Persistence accessors ─────────────────────────────────────────────
@@ -215,12 +218,33 @@ public:
 
 private:
     void applyBlockToMMR(const TxPoW& txpow) {
-        MiniData blockID = txpow.computeID();
-        MMRData data(blockID);
-        m_mmrSet->addLeaf(data);
+        // Java ref: MinimaDB.updateMMR(TxPoW)
+        // Outputs: add new UTxOs as MMR leaves (coinHash, amount, spent=false)
+        // Inputs:  mark spent UTxOs in MMR (coinHash, amount, spent=true)
+        const auto& txn = txpow.body().txn;
+
+        // ── New outputs → add leaves ──────────────────────────────────────
+        for (const auto& coin : txn.outputs()) {
+            MiniData coinHash = coin.hashValue();
+            MMRData  leaf(coinHash, coin.amount(), /*spent=*/false);
+            MMREntry entry = m_mmrSet->addLeaf(leaf);
+            // track coinID (hex) → MMR leaf index for spend lookup
+            m_coinToMMREntry[coin.coinID().toHexString(false)] = entry.getEntry();
+        }
+
+        // ── Spent inputs → mark leaves ────────────────────────────────────
+        for (const auto& coin : txn.inputs()) {
+            auto it = m_coinToMMREntry.find(coin.coinID().toHexString(false));
+            if (it != m_coinToMMREntry.end()) {
+                MiniData coinHash = coin.hashValue();
+                MMRData  spent(coinHash, coin.amount(), /*spent=*/true);
+                m_mmrSet->updateLeaf(it->second, spent);
+            }
+        }
     }
 
     // ── In-memory state ───────────────────────────────────────────────────
+    std::unordered_map<std::string, uint64_t> m_coinToMMREntry;
     std::unique_ptr<chain::TxPowTree>  m_txPowTree;
     std::unique_ptr<chain::BlockStore> m_blockStore;
     std::unique_ptr<chain::ChainState> m_chainState;

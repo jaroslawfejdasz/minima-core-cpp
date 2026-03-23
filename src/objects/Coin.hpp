@@ -14,6 +14,7 @@
 #include "StateVariable.hpp"
 #include <vector>
 #include <optional>
+#include "../crypto/Hash.hpp"
 
 namespace minima {
 
@@ -50,6 +51,10 @@ public:
     // ── Serialisation ─────────────────────────────────────────────────────────
     std::vector<uint8_t> serialise() const;
     static Coin          deserialise(const uint8_t* data, size_t& offset);
+
+    // Compute the coin's hash for MMR leaf: SHA3(serialise())
+    // Java ref: Coin.getHashValue() = Crypto.getInstance().hashData(serialise())
+    MiniData hashValue() const;
 
 private:
     MiniData   m_coinID;

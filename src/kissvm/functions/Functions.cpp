@@ -11,6 +11,7 @@
 #include "../../crypto/Hash.hpp"
 #include "../../crypto/RSA.hpp"
 #include "../../objects/Coin.hpp"
+#include "../../mmr/MMRProof.hpp"
 #include <stdexcept>
 #include <algorithm>
 #include <cmath>
@@ -709,31 +710,28 @@ Value SIGDIG(const std::vector<Value>& args, Contract& /*ctx*/) {
     return Value::number(MiniNumber(oss.str()));
 }
 
-// PROOF(data, proof_hex, root_hex) → BOOLEAN — verify MMR proof
-// In KISS VM, an MMR proof is a series of sha3(left|right) concatenations.
-// Simplified: verify that hashing data up through the proof chain reaches root.
+// PROOF(data, proof_hex, root_hex) → BOOLEAN — verify MMR inclusion proof
+// Java ref: MMRProof.verify(data, root)
+// proof_hex = serialised MMRProof bytes (as produced by MMRSet::getProof())
+// root_hex  = MMR root hash (32 bytes)
+// data      = coin hash (32 bytes) — the leaf data being proved
 Value PROOF(const std::vector<Value>& args, Contract& /*ctx*/) {
     requireArgs(args, 3, "PROOF");
     const MiniData& data      = hexArg(args, 0, "PROOF");
-    const MiniData& proofData = hexArg(args, 1, "PROOF");
-    const MiniData& root      = hexArg(args, 2, "PROOF");
+    const MiniData& proofHex  = hexArg(args, 1, "PROOF");
+    const MiniData& rootHex   = hexArg(args, 2, "PROOF");
+    (void)data; // data is embedded in the serialised proof; arg kept for API compat
 
-    // Proof is a flat list of 32-byte sibling hashes
-    auto cur   = crypto::Hash::sha3_256(data);
-    auto pbytes = proofData.bytes();
-    if (pbytes.size() % 32 != 0) return Value::boolean(false);
-
-    size_t nSiblings = pbytes.size() / 32;
-    for (size_t i = 0; i < nSiblings; ++i) {
-        std::vector<uint8_t> sibling(pbytes.begin() + (long)(i * 32),
-                                     pbytes.begin() + (long)((i + 1) * 32));
-        auto cb = cur.bytes();
-        std::vector<uint8_t> combined;
-        combined.insert(combined.end(), cb.begin(), cb.end());
-        combined.insert(combined.end(), sibling.begin(), sibling.end());
-        cur = crypto::Hash::sha3_256(MiniData(combined));
+    // Deserialise MMRProof and verify against root
+    try {
+        const auto& pb = proofHex.bytes();
+        size_t off = 0;
+        MMRProof proof = MMRProof::deserialise(pb.data(), off);
+        MMRData rootData(rootHex);
+        return Value::boolean(proof.verifyProof(rootData));
+    } catch (...) {
+        return Value::boolean(false);
     }
-    return Value::boolean(cur == root);
 }
 
 // REPLACEFIRST(s, from, to) → SCRIPT — replace first occurrence

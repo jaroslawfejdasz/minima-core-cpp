@@ -97,4 +97,11 @@ Coin Coin::deserialise(const uint8_t* data, size_t& offset) {
     return c;
 }
 
+// ── hashValue() ─────────────────────────────────────────────────────────────
+// Java ref: Coin.getHashValue() = Crypto.getInstance().hashData(serialise())
+MiniData Coin::hashValue() const {
+    auto bytes = serialise();
+    return crypto::Hash::sha3_256(bytes.data(), bytes.size());
+}
+
 } // namespace minima

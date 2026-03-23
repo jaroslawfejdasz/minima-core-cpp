@@ -10,6 +10,10 @@
 #include "../../src/system/TxPoWProcessor.hpp"
 #include "../../src/system/MessageProcessor.hpp"
 #include <cstdio>
+#include "../../src/objects/Coin.hpp"
+#include "../../src/objects/Address.hpp"
+#include "../../src/mmr/MMRProof.hpp"
+
 
 using namespace minima;
 using namespace minima::chain;
@@ -409,5 +413,120 @@ TEST_SUITE("TxPoWProcessor_MMR") {
         // Rebuild MMR — powinien być stable (nie crashować)
         db.rebuildMMR();
         CHECK(db.currentHeight() == 1);
+    }
+}
+
+// ── MMR with Coins ────────────────────────────────────────────────────────────
+// Tests for applyBlockToMMR — verifies UTxO coins are tracked in MMR
+TEST_SUITE("MinimaDB_MMR_Coins") {
+
+    static Coin makeCoin(const std::string& idHex, int64_t amount) {
+        std::vector<uint8_t> idBytes(32, 0x00);
+        // fill with idHex characters as bytes (simple deterministic ID)
+        for (size_t i = 0; i < idHex.size() && i < 32; ++i)
+            idBytes[i] = static_cast<uint8_t>(idHex[i]);
+        Coin c;
+        c.setCoinID(MiniData(idBytes));
+        c.setAmount(MiniNumber(amount));
+        // address = 32 zero bytes (script=RETURN TRUE)
+        Address addr(MiniData(std::vector<uint8_t>(32, 0xAB)));
+        c.setAddress(addr);
+        return c;
+    }
+
+    static TxPoW makeBlockWithTxn(int64_t blockNum, int64_t nonce,
+                                   const std::vector<Coin>& outputs,
+                                   const std::vector<Coin>& inputs = {}) {
+        TxPoW txp;
+        txp.header().blockNumber  = MiniNumber(blockNum);
+        txp.header().nonce        = MiniNumber(nonce);
+        for (int i = 1; i < CASCADE_LEVELS; ++i)
+            txp.header().superParents[i] = MiniData(std::vector<uint8_t>(32, 0));
+        for (const auto& o : outputs) txp.body().txn.addOutput(o);
+        for (const auto& inp : inputs) txp.body().txn.addInput(inp);
+        return txp;
+    }
+
+    TEST_CASE("MMR leaf count grows with outputs") {
+        MinimaDB db;
+        Coin c1 = makeCoin("coin1", 100);
+        Coin c2 = makeCoin("coin2", 200);
+        TxPoW b0 = makeBlockWithTxn(0, 1, {c1, c2});
+        db.addBlock(b0);
+        // MMR should have 2 leaves (one per output)
+        CHECK(db.mmrSet().getLeafCount() == 2);
+    }
+
+    TEST_CASE("MMR root changes after adding block with coins") {
+        MinimaDB db;
+        MMRData emptyRoot = db.mmrSet().getRoot();
+
+        Coin c1 = makeCoin("coinA", 500);
+        TxPoW b0 = makeBlockWithTxn(0, 1, {c1});
+        db.addBlock(b0);
+
+        MMRData rootAfter = db.mmrSet().getRoot();
+        // Root should be non-empty after adding a coin
+        CHECK(!rootAfter.isEmpty());
+        CHECK(rootAfter.getData() != emptyRoot.getData());
+    }
+
+    TEST_CASE("Coin hash is deterministic (same serialise → same hash)") {
+        Coin c = makeCoin("detcoin", 42);
+        MiniData h1 = c.hashValue();
+        MiniData h2 = c.hashValue();
+        CHECK(h1 == h2);
+        CHECK(h1.bytes().size() == 32);
+    }
+
+    TEST_CASE("Coin hash differs for different coins") {
+        Coin c1 = makeCoin("coinX", 100);
+        Coin c2 = makeCoin("coinY", 200);
+        CHECK(c1.hashValue() != c2.hashValue());
+    }
+
+    TEST_CASE("rebuildMMR with coins is stable") {
+        MinimaDB db;
+        Coin c1 = makeCoin("rc1", 111);
+        Coin c2 = makeCoin("rc2", 222);
+        TxPoW b0 = makeBlockWithTxn(0, 1, {c1, c2});
+        db.addBlock(b0);
+
+        MMRData root1 = db.mmrSet().getRoot();
+        db.rebuildMMR();
+        MMRData root2 = db.mmrSet().getRoot();
+
+        // Root should be the same after rebuild
+        CHECK(root1.getData() == root2.getData());
+        CHECK(db.mmrSet().getLeafCount() == 2);
+    }
+
+    TEST_CASE("MMR inclusion proof verifies for added coin") {
+        MinimaDB db;
+        Coin c1 = makeCoin("proofcoin", 999);
+        TxPoW b0 = makeBlockWithTxn(0, 1, {c1});
+        db.addBlock(b0);
+
+        // Leaf 0 should be verifiable
+        MMRProof proof = db.mmrSet().getProof(0);
+        MMRData  root  = db.mmrSet().getRoot();
+        CHECK(proof.verifyProof(root));
+    }
+
+    TEST_CASE("MMR has 3 leaves after 3-output block") {
+        MinimaDB db;
+        Coin c1 = makeCoin("t1", 10);
+        Coin c2 = makeCoin("t2", 20);
+        Coin c3 = makeCoin("t3", 30);
+        TxPoW b0 = makeBlockWithTxn(0, 7, {c1, c2, c3});
+        db.addBlock(b0);
+        CHECK(db.mmrSet().getLeafCount() == 3);
+
+        // All 3 proofs should verify
+        MMRData root = db.mmrSet().getRoot();
+        for (uint64_t i = 0; i < 3; ++i) {
+            MMRProof p = db.mmrSet().getProof(i);
+            CHECK(p.verifyProof(root));
+        }
     }
 }
