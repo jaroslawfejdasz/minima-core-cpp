@@ -8,6 +8,12 @@
 #include "kissvm/Tokenizer.hpp"
 #include "objects/Transaction.hpp"
 #include "objects/Witness.hpp"
+#include "mmr/MMRSet.hpp"
+#include "mmr/MMRProof.hpp"
+#include "mmr/MMRData.hpp"
+#include "crypto/Hash.hpp"
+#include <iomanip>
+#include <sstream>
 
 using namespace minima;
 using namespace minima::kissvm;
@@ -483,6 +489,121 @@ TEST_SUITE("KISS VM — GETOUTKEEPSTATE") {
         Transaction txn;
         txn.addOutput(out);
         Contract con("RETURN GETOUTKEEPSTATE(0) EQ FALSE", txn, Witness{});
+        con.execute();
+        CHECK(con.isTrue());
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KISS VM — PROOF function tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+namespace {
+
+MMRSet buildMMR(int n) {
+    MMRSet mmr;
+    for (int i = 0; i < n; ++i) {
+        std::vector<uint8_t> lb(32, static_cast<uint8_t>(i + 1));
+        MiniData lh = crypto::Hash::sha3_256(lb.data(), lb.size());
+        mmr.addLeaf(MMRData(lh, MiniNumber(int64_t(i)), false));
+    }
+    return mmr;
+}
+
+std::string dataToHex(const MiniData& d) {
+    std::ostringstream oss; oss << "0x";
+    for (uint8_t b : d.bytes())
+        oss << std::hex << std::setw(2) << std::setfill('0') << (int)b;
+    return oss.str();
+}
+
+std::string proofToHex(const MMRProof& p) {
+    auto bytes = p.serialise();
+    std::ostringstream oss; oss << "0x";
+    for (uint8_t b : bytes)
+        oss << std::hex << std::setw(2) << std::setfill('0') << (int)b;
+    return oss.str();
+}
+
+} // anonymous namespace
+
+TEST_SUITE("KISS VM — PROOF") {
+
+    TEST_CASE("PROOF returns TRUE for valid leaf in MMR") {
+        MMRSet mmr = buildMMR(4);
+        MMRProof proof = mmr.getProof(2);
+        MMRData  root  = mmr.getRoot();
+        std::vector<uint8_t> leafBytes(32, 3);
+        MiniData leafHash = crypto::Hash::sha3_256(leafBytes.data(), leafBytes.size());
+
+        std::string script = "RETURN PROOF(" + dataToHex(leafHash) + " "
+                           + proofToHex(proof) + " "
+                           + dataToHex(root.getData()) + ")";
+        Contract con(script, Transaction{}, Witness{});
+        con.execute();
+        CHECK(con.isTrue());
+    }
+
+    TEST_CASE("PROOF returns FALSE for wrong root") {
+        MMRSet mmr = buildMMR(4);
+        MMRProof proof = mmr.getProof(0);
+        std::vector<uint8_t> leafBytes(32, 1);
+        MiniData leafHash = crypto::Hash::sha3_256(leafBytes.data(), leafBytes.size());
+        MiniData fakeRoot(std::vector<uint8_t>(32, 0x00));
+
+        std::string script = "RETURN PROOF(" + dataToHex(leafHash) + " "
+                           + proofToHex(proof) + " "
+                           + dataToHex(fakeRoot) + ")";
+        Contract con(script, Transaction{}, Witness{});
+        con.execute();
+        CHECK_FALSE(con.isTrue());
+    }
+
+    TEST_CASE("PROOF returns FALSE for wrong data") {
+        MMRSet mmr = buildMMR(4);
+        MMRProof proof = mmr.getProof(0);
+        MMRData  root  = mmr.getRoot();
+        MiniData wrongHash(std::vector<uint8_t>(32, 0xFF));
+
+        std::string script = "RETURN PROOF(" + dataToHex(wrongHash) + " "
+                           + proofToHex(proof) + " "
+                           + dataToHex(root.getData()) + ")";
+        Contract con(script, Transaction{}, Witness{});
+        con.execute();
+        CHECK_FALSE(con.isTrue());
+    }
+
+    TEST_CASE("PROOF works for all leaves in an 8-leaf MMR") {
+        MMRSet mmr = buildMMR(8);
+        MMRData root = mmr.getRoot();
+
+        for (int i = 0; i < 8; ++i) {
+            std::vector<uint8_t> leafBytes(32, static_cast<uint8_t>(i + 1));
+            MiniData leafHash = crypto::Hash::sha3_256(leafBytes.data(), leafBytes.size());
+            MMRProof proof = mmr.getProof(static_cast<uint64_t>(i));
+
+            std::string script = "RETURN PROOF(" + dataToHex(leafHash) + " "
+                               + proofToHex(proof) + " "
+                               + dataToHex(root.getData()) + ")";
+            Contract con(script, Transaction{}, Witness{});
+            con.execute();
+            INFO("PROOF failed for leaf index " << i);
+            CHECK(con.isTrue());
+        }
+    }
+
+    TEST_CASE("PROOF in conditional expression") {
+        MMRSet mmr = buildMMR(4);
+        MMRProof proof = mmr.getProof(1);
+        MMRData  root  = mmr.getRoot();
+        std::vector<uint8_t> lb(32, 2);
+        MiniData lh = crypto::Hash::sha3_256(lb.data(), lb.size());
+
+        std::string script =
+            "LET p = PROOF(" + dataToHex(lh) + " " + proofToHex(proof) + " " + dataToHex(root.getData()) + ") "
+            "IF p THEN RETURN TRUE ENDIF "
+            "RETURN FALSE";
+        Contract con(script, Transaction{}, Witness{});
         con.execute();
         CHECK(con.isTrue());
     }

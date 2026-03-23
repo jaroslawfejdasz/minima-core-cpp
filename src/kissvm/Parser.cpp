@@ -344,8 +344,14 @@ std::unique_ptr<Node> Parser::parseFuncall(Token nameToken) {
     expect(TokenType::LPAREN, "(");
     if (!check(TokenType::RPAREN)) {
         node->children.push_back(parseExpr());
-        while (match(TokenType::COMMA))
+        // Support both comma-separated and space-separated arguments.
+        // Minima KISS VM uses space-separated args (e.g. PROOF(data proof root)).
+        // After each arg: skip optional comma, then loop if next is NOT RPAREN.
+        while (true) {
+            match(TokenType::COMMA); // consume optional comma
+            if (check(TokenType::RPAREN)) break;
             node->children.push_back(parseExpr());
+        }
     }
     expect(TokenType::RPAREN, ")");
     return node;

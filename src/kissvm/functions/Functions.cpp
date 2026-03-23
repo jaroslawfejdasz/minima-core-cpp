@@ -731,15 +731,23 @@ Value PROOF(const std::vector<Value>& args, Contract& /*ctx*/) {
     const MiniData& data      = hexArg(args, 0, "PROOF");
     const MiniData& proofHex  = hexArg(args, 1, "PROOF");
     const MiniData& rootHex   = hexArg(args, 2, "PROOF");
-    (void)data; // data is embedded in the serialised proof; arg kept for API compat
 
-    // Deserialise MMRProof and verify against root
+    // Deserialise MMRProof, then compute root using the provided data as the leaf.
+    // Matches Minima Java KISSVM: PROOF(data, proof, root) verifies
+    // that 'data' is a leaf in the MMR whose root hash is 'root'.
     try {
         const auto& pb = proofHex.bytes();
         size_t off = 0;
         MMRProof proof = MMRProof::deserialise(pb.data(), off);
-        MMRData rootData(rootHex);
-        return Value::boolean(proof.verifyProof(rootData));
+
+        // Build leaf from the supplied data
+        MMRData leaf(data, MiniNumber::ZERO, false);
+
+        // Walk the proof path with our leaf, compute the resulting root
+        MMRData calculatedRoot = proof.calculateProof(leaf);
+
+        // Compare computed root to provided root
+        return Value::boolean(calculatedRoot.getData() == rootHex);
     } catch (...) {
         return Value::boolean(false);
     }
