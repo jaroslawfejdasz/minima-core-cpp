@@ -23,6 +23,8 @@
 #include "../../src/network/NIOMessage.hpp"
 #include "../../src/objects/Greeting.hpp"
 #include "../../src/objects/TxPoW.hpp"
+#include "../../src/objects/TxHeader.hpp"
+#include "../../src/objects/TxBody.hpp"
 #include "../../src/types/MiniData.hpp"
 #include "../../src/types/MiniNumber.hpp"
 #include "../../src/types/MiniString.hpp"
@@ -325,12 +327,34 @@ TEST_SUITE("LiveNode_NIO") {
                 // Try to deserialise the TxPoW
                 TxPoW txp;
                 bool parsedOk = false;
+                size_t txOffset = 0;
+                const auto& rawPayload = msg.payload;
                 try {
-                    size_t txOffset = 0;
-                    txp = TxPoW::deserialise(msg.payload.data(), txOffset);
+                    // Step by step parse with bounds check
+                    std::cout << "[DBG] Parsing TxHeader...\n";
+                    TxHeader hdr = TxHeader::deserialise(rawPayload.data(), txOffset);
+                    std::cout << "[DBG] TxHeader OK, offset=" << txOffset 
+                              << " block=" << hdr.blockNumber.getAsLong() << "\n";
+                    
+                    if (txOffset >= rawPayload.size()) {
+                        std::cout << "[DBG] No body flag byte!\n";
+                    } else {
+                        uint8_t bodyFlag = rawPayload[txOffset++];
+                        std::cout << "[DBG] bodyFlag=" << (int)bodyFlag 
+                                  << " offset=" << txOffset << "\n";
+                        
+                        if (bodyFlag) {
+                            std::cout << "[DBG] Parsing TxBody...\n";
+                            TxBody body = TxBody::deserialise(rawPayload.data(), txOffset);
+                            std::cout << "[DBG] TxBody OK, offset=" << txOffset << "\n";
+                        }
+                    }
                     parsedOk = true;
                 } catch (const std::exception& e) {
-                    std::cout << "[NIO] TxPoW parse error: " << e.what() << "\n";
+                    std::cout << "[NIO] TxPoW parse error at offset " << txOffset 
+                              << ": " << e.what() << "\n";
+                } catch (...) {
+                    std::cout << "[NIO] TxPoW UNKNOWN crash at offset " << txOffset << "\n";
                 }
 
                 if (parsedOk) {
