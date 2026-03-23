@@ -18,11 +18,12 @@ TEST_SUITE("Genesis") {
         REQUIRE(c.coinID().bytes().size() == 32);
         for (auto b : c.coinID().bytes()) CHECK(b == 0x00);
     }
-    TEST_CASE("coin address = SHA3('RETURN TRUE')") {
+    TEST_CASE("coin address = SHA3(MiniString('RETURN TRUE').serialise())") {
         auto c = makeGenesisCoin();
-        const std::string sc = "RETURN TRUE";
-        auto expected = crypto::Hash::sha3_256(
-            reinterpret_cast<const uint8_t*>(sc.data()), sc.size());
+        // Java: Address = SHA3(MiniString.writeDataStream()) = SHA3(2-byte-len + utf8)
+        MiniString ms("RETURN TRUE");
+        auto msBytes = ms.serialise();
+        auto expected = crypto::Hash::sha3_256(msBytes.data(), msBytes.size());
         CHECK(c.address().hash() == expected);
     }
     TEST_CASE("genesis MMR has 1 leaf") {

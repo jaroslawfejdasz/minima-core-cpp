@@ -45,9 +45,11 @@ inline const std::string& genesisScript() {
 inline Coin makeGenesisCoin() {
     MiniData coinID(std::vector<uint8_t>(32, 0x00));
 
-    const std::string& sc = genesisScript();
-    MiniData addrHash = crypto::Hash::sha3_256(
-        reinterpret_cast<const uint8_t*>(sc.data()), sc.size());
+    // Java: new Address(new MiniString("RETURN TRUE"))
+    //       → SHA3(MiniString.writeDataStream()) = SHA3(2-byte-len + utf8-bytes)
+    MiniString ms(genesisScript());
+    auto msBytes = ms.serialise();
+    MiniData addrHash = crypto::Hash::sha3_256(msBytes.data(), msBytes.size());
     Address addr(addrHash);
 
     Coin c;
