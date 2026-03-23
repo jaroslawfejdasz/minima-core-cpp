@@ -139,6 +139,8 @@ public:
         m_blockStore->add(id, txpow);
         auto* tip = m_txPowTree->tip();
         if (tip) m_chainState->setTip(tip->txPoWID(), tip->blockNumber());
+        // Apply UTxO changes to MMR (Java: MinimaDB.updateMMR)
+        applyBlockToMMR(txpow);
         return true;
     }
 
