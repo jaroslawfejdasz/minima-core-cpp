@@ -84,7 +84,7 @@ struct NetworkEvent {
 // ── Protocol state machine for one connection ─────────────────────────────────
 class ProtocolConnection {
 public:
-    using EventCallback = std::function<void(const NetworkEvent&)>;
+    using EventCallback = std::function<void(NetworkEvent)>;
 
     // outBuffer: bytes to send to peer
     std::vector<uint8_t> outBuffer;
@@ -135,7 +135,7 @@ private:
     std::vector<uint8_t> m_recvBuf;
 
     void _emit(NetworkEvent ev) {
-        if (m_cb) m_cb(ev);
+        if (m_cb) m_cb(std::move(ev));
     }
 
     void _enqueue(const NIOMsg& msg) {
@@ -182,7 +182,17 @@ private:
 
     bool _handleHandshakeGreeting(const NIOMsg& msg) {
         if (msg.type != MsgType::GREETING) {
-            _emit({ NetworkEvent::Kind::ERROR, "Expected GREETING, got " + std::string(msgTypeName(msg.type)) });
+            {
+
+                NetworkEvent _ev;
+
+                _ev.kind = NetworkEvent::Kind::ERROR;
+
+                _ev.detail = "Expected GREETING, got " + std::string(msgTypeName(msg.type));
+
+                _emit(std::move(_ev));
+
+            }
             m_state = ConnState::CLOSED;
             return false;
         }
@@ -194,7 +204,7 @@ private:
             NetworkEvent ev;
             ev.kind = NetworkEvent::Kind::GREETING_RECV;
             ev.greeting = g;
-            _emit(ev);
+            _emit(std::move(ev));
 
             // If peer is ahead of us, request IBD
             if (m_peerTip.getAsLong() > m_localTip.getAsLong()) {
@@ -205,10 +215,30 @@ private:
             } else {
                 // We're equal or ahead — go straight to READY
                 m_state = ConnState::READY;
-                _emit({ NetworkEvent::Kind::CONNECTED, "handshake complete (no IBD needed)" });
+                {
+
+                    NetworkEvent _ev;
+
+                    _ev.kind = NetworkEvent::Kind::CONNECTED;
+
+                    _ev.detail = "handshake complete (no IBD needed)";
+
+                    _emit(std::move(_ev));
+
+                }
             }
         } catch (const std::exception& e) {
-            _emit({ NetworkEvent::Kind::ERROR, std::string("Greeting parse error: ") + e.what() });
+            {
+
+                NetworkEvent _ev;
+
+                _ev.kind = NetworkEvent::Kind::ERROR;
+
+                _ev.detail = std::string("Greeting parse error: ") + e.what();
+
+                _emit(std::move(_ev));
+
+            }
             m_state = ConnState::CLOSED;
             return false;
         }
@@ -223,12 +253,32 @@ private:
                 ev.kind = NetworkEvent::Kind::IBD_RECV;
                 ev.ibd  = std::move(ibd);
                 ev.detail = "IBD: " + std::to_string(ev.ibd->blockCount()) + " blocks";
-                _emit(ev);
+                _emit(std::move(ev));
             } catch (const std::exception& e) {
-                _emit({ NetworkEvent::Kind::ERROR, std::string("IBD parse error: ") + e.what() });
+                {
+
+                    NetworkEvent _ev;
+
+                    _ev.kind = NetworkEvent::Kind::ERROR;
+
+                    _ev.detail = std::string("IBD parse error: ") + e.what();
+
+                    _emit(std::move(_ev));
+
+                }
             }
             m_state = ConnState::READY;
-            _emit({ NetworkEvent::Kind::CONNECTED, "handshake complete (IBD received)" });
+            {
+
+                NetworkEvent _ev;
+
+                _ev.kind = NetworkEvent::Kind::CONNECTED;
+
+                _ev.detail = "handshake complete (IBD received)";
+
+                _emit(std::move(_ev));
+
+            }
             return true;
         }
         // Other messages during IBD wait — queue or handle
@@ -239,7 +289,17 @@ private:
         switch (msg.type) {
             case MsgType::SINGLE_PING: {
                 _enqueue(buildPong());
-                _emit({ NetworkEvent::Kind::PING_RECV, "ping" });
+                {
+
+                    NetworkEvent _ev;
+
+                    _ev.kind = NetworkEvent::Kind::PING_RECV;
+
+                    _ev.detail = "ping";
+
+                    _emit(std::move(_ev));
+
+                }
                 break;
             }
             case MsgType::SINGLE_PONG:
@@ -254,7 +314,7 @@ private:
                     ev.kind = NetworkEvent::Kind::PULSE_RECV;
                     ev.blockHeight = bn;
                     ev.detail = "pulse: block " + bn.toString();
-                    _emit(ev);
+                    _emit(std::move(ev));
                 } catch (...) {}
                 break;
             }
@@ -265,7 +325,7 @@ private:
                 ev.kind = NetworkEvent::Kind::TXPOWID_RECV;
                 ev.txpowId = id;
                 ev.detail = "txpow_id: " + id.toHexString();
-                _emit(ev);
+                _emit(std::move(ev));
                 break;
             }
 
@@ -275,9 +335,19 @@ private:
                     NetworkEvent ev;
                     ev.kind = NetworkEvent::Kind::TXPOW_RECV;
                     ev.detail = "txpow received";
-                    _emit(ev);
+                    _emit(std::move(ev));
                 } catch (const std::exception& e) {
-                    _emit({ NetworkEvent::Kind::ERROR, std::string("TxPoW parse: ") + e.what() });
+                    {
+
+                        NetworkEvent _ev;
+
+                        _ev.kind = NetworkEvent::Kind::ERROR;
+
+                        _ev.detail = std::string("TxPoW parse: ") + e.what();
+
+                        _emit(std::move(_ev));
+
+                    }
                 }
                 break;
             }
@@ -286,7 +356,7 @@ private:
                 NetworkEvent ev;
                 ev.kind = NetworkEvent::Kind::MSG_UNKNOWN;
                 ev.detail = std::string("unknown msg: ") + msgTypeName(msg.type);
-                _emit(ev);
+                _emit(std::move(ev));
                 break;
             }
         }
