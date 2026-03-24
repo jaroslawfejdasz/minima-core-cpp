@@ -149,6 +149,7 @@ Value CHECKSIG(const std::vector<Value>& args, Contract& ctx) {
     requireArgs(args, 3, "CHECKSIG");
     const MiniData& pubkey = hexArg(args, 0, "CHECKSIG");
     const MiniData& data   = hexArg(args, 1, "CHECKSIG");
+    (void)data;  // used only with MINIMA_OPENSSL
     const MiniData& sig    = hexArg(args, 2, "CHECKSIG");
 
 #ifdef MINIMA_OPENSSL

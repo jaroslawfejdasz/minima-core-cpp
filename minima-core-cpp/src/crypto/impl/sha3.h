@@ -57,7 +57,6 @@ inline void sha3(const uint8_t* in, size_t inlen, uint8_t* out, int outlen) {
     uint8_t  temp[144];
     int rsiz = 200 - 2 * outlen;  // rate in bytes
 
-    size_t i = 0;
     for (; inlen >= (size_t)rsiz; in += rsiz, inlen -= rsiz) {
         for (int j = 0; j < rsiz; j++) temp[j] = in[j];
         for (int j = 0; j < rsiz/8; j++) {

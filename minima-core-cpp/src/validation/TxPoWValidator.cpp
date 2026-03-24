@@ -207,26 +207,9 @@ ValidationResult TxPoWValidator::checkCoinIDs(const TxPoW& txpow) const {
 // ── 5. State variables check ─────────────────────────────────────────────────
 
 ValidationResult TxPoWValidator::checkStateVars(const TxPoW& txpow) const {
-    const Transaction& txn = txpow.body().txn;
+    // port() is uint8_t — always in [0, 255], no range check needed
 
-    // Port numbers must be in range 0..255
-    for (const auto& sv : txn.stateVars()) {
-        if (sv.port() > 255) {
-            std::ostringstream oss;
-            oss << "StateVar check: port " << static_cast<int>(sv.port())
-                << " out of range (0-255)";
-            return ValidationResult::fail(oss.str());
-        }
-    }
-
-    // Check output coin state vars
-    for (const auto& coin : txn.outputs()) {
-        for (const auto& sv : coin.stateVars()) {
-            if (sv.port() > 255) {
-                return ValidationResult::fail("StateVar check: coin state port out of range");
-            }
-        }
-    }
+    // Output coin state vars: port() is uint8_t, always in [0,255]
 
     return ValidationResult::ok();
 }

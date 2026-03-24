@@ -35,8 +35,8 @@ public:
           const MiniString& script_,
           const MiniNumber& created_ = MiniNumber(int64_t(0)))
         : m_coinID(coinID_)
-        , m_scale(scale_)
         , m_totalSupply(minimaAmount_)
+        , m_scale(scale_)
         , m_name(name_)
         , m_description(MiniString(""))
         , m_script(script_)
