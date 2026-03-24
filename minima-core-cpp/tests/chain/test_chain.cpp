@@ -392,3 +392,61 @@ TEST_CASE("ChainProcessor: multi-block chain (5 blocks)") {
     CHECK(cp.utxoSet().hasCoin(prevCID));
     CHECK(cp.utxoSet().size() == 1);
 }
+
+// ─── ChainProcessor ↔ Mempool integration ────────────────────────────────────
+
+TEST_CASE("ChainProcessor: process() clears conflicting mempool entries") {
+    ChainProcessor cp;
+
+    // Seed UTxO with two coins
+    Coin c1 = makeSeedCoin(100.0, 0x90);
+    Coin c2 = makeSeedCoin(100.0, 0x91);
+    cp.utxoSet().addCoin(c1);
+    cp.utxoSet().addCoin(c2);
+
+    // Add a pending tx spending c1 to mempool
+    TxPoW pending;
+    pending.header().blockNumber = MiniNumber(int64_t(99));
+    pending.header().timeMilli   = MiniNumber(int64_t(1099000));
+    pending.body().txnDifficulty = MiniData(std::vector<uint8_t>(32, 0xFF));
+    pending.body().txn.addInput(c1);
+    pending.body().witness = returnTrueWitness();
+    MiniData pendingID = pending.computeID();
+    cp.mempool().add(pending);
+    REQUIRE(cp.mempool().contains(pendingID));
+
+    // Now process a block that also spends c1
+    TxPoW blk = makeTxPoW(c1, makeOutputCoin(100.0), 1);
+    auto r = cp.process(blk);
+    CHECK(r.accepted);
+
+    // Mempool entry must be evicted (conflicts with accepted block)
+    CHECK_FALSE(cp.mempool().contains(pendingID));
+}
+
+TEST_CASE("ChainProcessor: process() leaves non-conflicting mempool entries") {
+    ChainProcessor cp;
+
+    Coin c1 = makeSeedCoin(100.0, 0x92);
+    Coin c2 = makeSeedCoin(100.0, 0x93);
+    cp.utxoSet().addCoin(c1);
+    cp.utxoSet().addCoin(c2);
+
+    // Pending tx spends c2 (different coin)
+    TxPoW pending;
+    pending.header().blockNumber = MiniNumber(int64_t(99));
+    pending.header().timeMilli   = MiniNumber(int64_t(1099000));
+    pending.body().txnDifficulty = MiniData(std::vector<uint8_t>(32, 0xFF));
+    pending.body().txn.addInput(c2);
+    pending.body().witness = returnTrueWitness();
+    MiniData pendingID = pending.computeID();
+    cp.mempool().add(pending);
+
+    // Process block spending c1 (no conflict with pending)
+    TxPoW blk = makeTxPoW(c1, makeOutputCoin(100.0), 1);
+    auto r = cp.process(blk);
+    CHECK(r.accepted);
+
+    // Pending tx (spending c2) must still be in pool
+    CHECK(cp.mempool().contains(pendingID));
+}

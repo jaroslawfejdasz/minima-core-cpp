@@ -20,6 +20,7 @@
 #include "../objects/Transaction.hpp"
 #include "../types/MiniData.hpp"
 #include "../validation/TxPoWValidator.hpp"
+#include "../mempool/Mempool.hpp"
 #include <string>
 #include <optional>
 
@@ -63,6 +64,9 @@ public:
         // 4. Apply coins
         applyCoins(txpow);
 
+        // 4b. Evict conflicting mempool entries
+        m_mempool.onBlockAccepted(txpow);
+
         // 5. Update tip
         int64_t bn = txpow.header().blockNumber.getAsLong();
         if (bn >= m_state.getHeight())
@@ -91,6 +95,7 @@ public:
     MiniData      getTip()      const { return m_state.getTip();    }
     BlockStore&   blockStore()        { return m_store;  }
     UTxOSet&      utxoSet()           { return m_utxo;   }
+    mempool::Mempool& mempool()       { return m_mempool; }
 
     /**
      * reorg() — given a fork tip, find the common ancestor and
@@ -157,6 +162,7 @@ private:
     ChainState                     m_state;
     UTxOSet                        m_utxo;
     minima::validation::TxPoWValidator m_validator;
+    mempool::Mempool               m_mempool;
 
     void applyCoins(const TxPoW& txpow) {
         // Spend inputs
