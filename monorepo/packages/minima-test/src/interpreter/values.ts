@@ -23,6 +23,7 @@ export class MiniValue {
     if (this.type === 'NUMBER') return parseFloat(this.raw);
     if (this.type === 'BOOLEAN') return this.raw === 'TRUE' ? 1 : 0;
     if (this.type === 'HEX') return parseInt(this.raw, 16);
+    if (this.type === 'STRING') { const n = parseFloat(this.raw); if (!isNaN(n)) return n; throw new Error(`Cannot convert STRING '${this.raw}' to NUMBER`); }
     throw new Error(`Cannot convert ${this.type} to NUMBER`);
   }
 

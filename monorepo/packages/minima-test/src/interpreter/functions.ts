@@ -14,7 +14,15 @@ const FUNCTIONS: Record<string, FnImpl> = {
     if (a.type === 'STRING') return MiniValue.hex(Buffer.from(a.raw, 'utf8').toString('hex'));
     return MiniValue.hex(a.raw);
   },
-  STRING: ([a]) => MiniValue.string(a.asString()),
+  STRING: ([a]) => {
+    if (a.type === 'HEX') {
+      // Decode hex bytes to UTF-8 string
+      const hex = a.raw.replace(/^0x/, '');
+      const bytes = Buffer.from(hex, 'hex');
+      return MiniValue.string(bytes.toString('utf8'));
+    }
+    return MiniValue.string(a.asString());
+  },
   ASCII: ([a]) => {
     if (a.type === 'HEX') {
       const hex = a.raw.replace('0x', '');

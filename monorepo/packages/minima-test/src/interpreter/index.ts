@@ -89,7 +89,7 @@ export class KissVMInterpreter {
   private executeLet() {
     this.advance(); // LET
     const name = this.advance(); // variable name
-    const varName = name.value;
+    const varName = name.value.toUpperCase();
     // optional = sign (KISS VM uses LET x = expr OR LET x expr)
     if (this.match('OPERATOR', '=')) {
       this.advance();
@@ -380,13 +380,13 @@ export class KissVMInterpreter {
     // Global variable @BLOCK etc
     if (t.type === 'GLOBAL') {
       this.advance();
-      return this.env.getVariable(t.value);
+      return this.env.getVariable(t.value.toUpperCase());
     }
 
     // Variable
     if (t.type === 'VARIABLE') {
       this.advance();
-      return this.env.getVariable(t.value);
+      return this.env.getVariable(t.value.toUpperCase());
     }
 
     // Function call
