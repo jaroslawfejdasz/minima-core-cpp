@@ -87,6 +87,7 @@ public:
         app(m_name.serialise());
         app(m_description.serialise());
         app(m_script.serialise());
+        app(m_created.serialise());
         return out;
     }
 
@@ -99,6 +100,7 @@ public:
         t.m_name        = MiniString::deserialise(data, offset);
         t.m_description = MiniString::deserialise(data, offset);
         t.m_script      = MiniString::deserialise(data, offset);
+        t.m_created     = MiniNumber::deserialise(data, offset);
         return t;
     }
 
