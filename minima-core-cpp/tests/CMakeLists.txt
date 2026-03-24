@@ -34,6 +34,7 @@ add_minima_test(test_mempool      mempool/test_mempool.cpp)
 
 # Crypto suites (use real RSA when OpenSSL is enabled)
 add_minima_test(test_rsa          crypto/test_rsa.cpp)
+add_minima_test(test_wots         crypto/test_wots_treekey.cpp)
 add_minima_test(test_checksig     crypto/test_checksig_integration.cpp)
 add_minima_test(test_multisig     crypto/test_multisig.cpp)
 
