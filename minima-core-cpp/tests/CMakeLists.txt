@@ -36,6 +36,7 @@ add_minima_test(test_mempool      mempool/test_mempool.cpp)
 add_minima_test(test_rsa          crypto/test_rsa.cpp)
 add_minima_test(test_wots         crypto/test_wots_treekey.cpp)
 add_minima_test(test_checksig     crypto/test_checksig_integration.cpp)
+add_minima_test(test_checksig_tk  crypto/test_checksig_treekey.cpp)
 add_minima_test(test_multisig     crypto/test_multisig.cpp)
 
 # When OpenSSL is enabled, explicitly propagate MINIMA_OPENSSL to test targets
@@ -46,7 +47,7 @@ target_link_libraries(test_loopback PRIVATE Threads::Threads)
 if(MINIMA_CRYPTO_OPENSSL)
     find_package(OpenSSL REQUIRED)
     foreach(tgt
-        test_rsa test_checksig test_multisig
+        test_rsa test_checksig test_checksig_tk test_multisig
         test_validation test_kissvm)
         target_link_libraries(${tgt} PRIVATE OpenSSL::Crypto OpenSSL::SSL)
         target_compile_definitions(${tgt} PRIVATE MINIMA_OPENSSL)
