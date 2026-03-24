@@ -80,3 +80,26 @@ Full-node implementation of the Minima blockchain in C++20. The goal is wire-exa
 | 1 | Publish npm packages (minima-test, kiss-vm-lint) | medium |
 | 2 | Live node integration test — connect to a real Minima seed node and exchange Greeting | medium |
 | 3 | ARM QEMU testing in CI — execute cross-compiled binaries | low |
+
+
+## Live Node Integration Test — DONE ✅
+**Date:** 2026-03-24
+
+**Wynik:** 11/11 testów przechodzi z prawdziwym węzłem Java Minima v1.0.45-TEST.15
+
+### Co zostało zweryfikowane:
+1. ✅ RPC HTTP GET `/status` — blok, balans, uptime
+2. ✅ TCP connect do NIO port 9001
+3. ✅ Greeting send/receive — wire format zgodny z Java 1:1
+4. ✅ PING/PONG round-trip
+5. ✅ TxPoW request/response (GET_SINGLE_TXPOW)
+6. ✅ TxHeader + TxBody parse z realnych danych
+7. ✅ Chain ID parsing z Greeting (21 bloków)
+
+### Kluczowe fakty (weryfikacja z prawdziwym węzłem):
+- Minima v1.0.45 używa `-noshutdownhook` żeby węzeł żył w tle
+- P2P port: `baseport` (np. 9001), RPC: `baseport+4` (np. 9005)
+- Flaga `-solo` wyłącza P2P2 — użyj `-test` dla trybu prywatnego z P2P
+- Genesis block ID: `0x874B33874805FFA5C7F045736CA773EF798074B0A320516A7F01007D3FFF7733`
+- Wire format Greeting nasz C++ parsuje 835 bytes 835/835 (100% poprawnie)
+

@@ -2,7 +2,7 @@
  * test_live_node — Live integration test against a real Minima Java node.
  *
  * Prerequisites (handled by run_live_test.sh):
- *   - Minima Java node running on 127.0.0.1:19001 (private testnet)
+ *   - Minima Java node running on 127.0.0.1:9001 (default port; RPC on 9005)
  *   - Genesis block already mined
  *
  * What this test verifies:
@@ -82,8 +82,8 @@ static std::string httpGet(const std::string& host, uint16_t port,
 // ── Test constants ────────────────────────────────────────────────────────────
 
 static const char* NODE_HOST  = "127.0.0.1";
-static uint16_t    NIO_PORT   = 19001;
-static uint16_t    RPC_PORT   = 19005;
+static uint16_t    NIO_PORT   = 9001;
+static uint16_t    RPC_PORT   = 9005;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Test Suite 1: RPC sanity (HTTP — verifies node is alive)
