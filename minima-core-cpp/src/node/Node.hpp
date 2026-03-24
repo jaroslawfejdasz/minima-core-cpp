@@ -65,7 +65,7 @@ private:
 inline Node::Node(const NodeConfig& cfg) : m_cfg(cfg) {}
 
 inline void Node::_log(const std::string& msg) {
-    if (m_cfg.verbose) printf("[Node] %s\n", msg.c_str());
+    if (m_cfg.verbose) { printf("[Node] %s\n", msg.c_str()); fflush(stdout); }
 }
 
 inline bool Node::start() {

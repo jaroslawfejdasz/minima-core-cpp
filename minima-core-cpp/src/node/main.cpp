@@ -10,10 +10,6 @@
  *   -cport <n>         Peer port (default: 9001)
  *   -quiet             Suppress verbose output
  *   -help              Show help
- *
- * Examples:
- *   minimanode -port 9001
- *   minimanode -connect 91.107.194.118 -cport 9001
  */
 #include "Node.hpp"
 
@@ -31,8 +27,9 @@ using namespace std::chrono_literals;
 
 static std::atomic<bool> g_stop { false };
 
-static void sigHandler(int) {
-    g_stop = true;
+static void sigHandler(int sig) {
+    if (sig == SIGINT || sig == SIGTERM) g_stop = true;
+    // SIGPIPE — ignored (handled per-write via MSG_NOSIGNAL)
 }
 
 static void printHelp(const char* argv0) {
@@ -46,6 +43,15 @@ static void printHelp(const char* argv0) {
 }
 
 int main(int argc, char** argv) {
+    // Unbuffered stdout so output appears immediately even when piped
+    setvbuf(stdout, nullptr, _IONBF, 0);
+    setvbuf(stderr, nullptr, _IONBF, 0);
+
+    // Ignore SIGPIPE — broken pipe on send() returns error instead of crashing
+    signal(SIGPIPE, SIG_IGN);
+    signal(SIGINT,  sigHandler);
+    signal(SIGTERM, sigHandler);
+
     NodeConfig cfg;
 
     for (int i = 1; i < argc; i++) {
@@ -53,20 +59,15 @@ int main(int argc, char** argv) {
             printHelp(argv[0]);
             return 0;
         }
-        if (strcmp(argv[i], "-port") == 0 && i + 1 < argc) {
+        if (strcmp(argv[i], "-port") == 0 && i + 1 < argc)
             cfg.listenPort = (uint16_t)atoi(argv[++i]);
-        } else if (strcmp(argv[i], "-connect") == 0 && i + 1 < argc) {
+        else if (strcmp(argv[i], "-connect") == 0 && i + 1 < argc)
             cfg.connectHost = argv[++i];
-        } else if (strcmp(argv[i], "-cport") == 0 && i + 1 < argc) {
+        else if (strcmp(argv[i], "-cport") == 0 && i + 1 < argc)
             cfg.connectPort = (uint16_t)atoi(argv[++i]);
-        } else if (strcmp(argv[i], "-quiet") == 0) {
+        else if (strcmp(argv[i], "-quiet") == 0)
             cfg.verbose = false;
-        }
     }
-
-    // Handle Ctrl+C
-    signal(SIGINT,  sigHandler);
-    signal(SIGTERM, sigHandler);
 
     Node node(cfg);
     if (!node.start()) {
@@ -75,20 +76,21 @@ int main(int argc, char** argv) {
     }
 
     printf("Node started. Press Ctrl+C to stop.\n");
+    fflush(stdout);
 
-    // Status loop — print stats every 30s
+    int tick = 0;
     while (!g_stop) {
         std::this_thread::sleep_for(1s);
-        // Check every second but print every 30
-        static int counter = 0;
-        if (++counter % 30 == 0) {
+        if (++tick % 30 == 0) {
             printf("[Status] peers=%d  tip=%s\n",
                    node.peerCount(),
                    node.tipBlock().toString().c_str());
+            fflush(stdout);
         }
     }
 
     printf("\nShutting down...\n");
+    fflush(stdout);
     node.stop();
     return 0;
 }
