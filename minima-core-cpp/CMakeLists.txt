@@ -75,6 +75,28 @@ if(MINIMA_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
+
+find_package(Threads REQUIRED)
+
+# ── minimanode executable ─────────────────────────────────────────────────────
+option(MINIMA_BUILD_NODE "Build minimanode executable" ON)
+if(MINIMA_BUILD_NODE)
+    add_executable(minimanode src/node/main.cpp)
+    target_link_libraries(minimanode PRIVATE minima-core Threads::Threads)
+    target_include_directories(minimanode PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+    if(MINIMA_CRYPTO_OPENSSL)
+        target_link_libraries(minimanode PRIVATE OpenSSL::Crypto)
+        target_compile_definitions(minimanode PRIVATE MINIMA_OPENSSL)
+    endif()
+
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(minimanode PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    endif()
+
+    message(STATUS "Building minimanode executable")
+endif()
+
 # ── Install ───────────────────────────────────────────────────────────────────
 install(TARGETS minima-core ARCHIVE DESTINATION lib)
 install(DIRECTORY src/ DESTINATION include/minima-core
